@@ -1,14 +1,16 @@
+use clap::Parser;
+
+mod cli;
 mod file;
 mod yaml;
+mod run;
 
 fn main() {
-    let path = String::from("./bee");
-    let tasks = yaml::parse_yaml_files(&path).unwrap();
-    for task_data in tasks {
-        if let Some((name, task)) = task_data.iter().next() {
-            println!("{}:", name);
-            println!("  depends_on: {:?}", task.depends_on);
-            println!("  run: {}", task.run);
+    let cli = cli::Cli::parse();
+
+    match cli.command {
+        cli::Commands::Run { tag, no_cache, only } => {
+            run::run_main(tag, no_cache, only);
         }
     }
 }
