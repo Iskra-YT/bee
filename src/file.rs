@@ -1,9 +1,10 @@
 use std::fs::{self, ReadDir};
+use anyhow::Result;
 
-pub fn get_file_content(path: &String) -> String {
-    return fs::read_to_string(path).unwrap();
+pub fn get_file_content(path: &String) -> Result<String> {
+    return Ok(fs::read_to_string(path)?);
 }
 
-pub fn get_directory(path: &String) -> ReadDir {
-    return fs::read_dir(path).unwrap();
+pub fn get_directory(path: &String) -> Result<ReadDir> {
+    return Ok(fs::read_dir(path)?);
 }

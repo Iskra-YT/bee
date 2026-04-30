@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ArgAction};
 
 #[derive(Parser)]
 #[command(name = "bee")]
@@ -10,14 +10,13 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     #[command(name = "run")]
-    #[command(about = "Run a task", long_about = None)]
     Run {
         tag: String,
 
-        #[arg(long)]
-        no_cache: bool,
-
-        #[arg(long)]
-        only: bool
-    }
+        #[arg(short = 't', long = "task", action = ArgAction::SetTrue, required = false)]
+        task: bool,
+    },
+    
+    #[command(name = "init")]
+    Init,
 }
