@@ -1,13 +1,14 @@
-use clap::Parser;
-
 mod cli;
-mod file;
-mod yaml;
 mod run;
 mod init;
+mod parser;
+mod yaml;
+
+use clap::Parser;
+use cli::Cli;
 
 fn main() {
-    let cli = cli::Cli::parse();
+    let cli = Cli::parse();
 
     match cli.command {
         cli::Commands::Run { tag, task } => {
@@ -16,6 +17,7 @@ fn main() {
 
         cli::Commands::Init => {
             init::run_init().unwrap();
+            println!("Initialization complete!");
         }
     }
 }
