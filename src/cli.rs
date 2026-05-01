@@ -11,6 +11,7 @@ pub struct Cli {
 pub enum Commands {
     Run,
     Init,
+    List,
     Pipeline(PipelineArgs),
     Task(TaskArgs),
     Rule(RuleArgs)
@@ -25,6 +26,10 @@ pub struct PipelineArgs {
 #[derive(Subcommand)]
 pub enum PipelineCommand {
     Run {
+        name: String,
+    },
+
+    Add {
         name: String,
     },
 
@@ -43,6 +48,10 @@ pub enum TaskCommand {
         name: String,
     },
 
+    Add {
+        name: String,
+    },
+
     List,
 }
 
@@ -54,5 +63,9 @@ pub struct RuleArgs {
 
 #[derive(Subcommand)]
 pub enum RuleCommand {
-    List
+    List,
+
+    Add {
+        name: String,
+    }
 }

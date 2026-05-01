@@ -8,3 +8,8 @@ pub fn get_file_content(path: &String) -> Result<String> {
 pub fn get_directory(path: &String) -> Result<ReadDir> {
     return Ok(fs::read_dir(path)?);
 }
+
+pub fn write_file_content(path: &String, content: &String) -> Result<()> {
+    fs::write(path, content)?;
+    Ok(())
+}

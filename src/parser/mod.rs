@@ -9,6 +9,23 @@ pub struct Task {
 }
 
 #[derive(Serialize)]
+pub struct Pipeline {
+    pub tasks: Vec<String>
+}
+
+#[derive(Serialize)]
+pub struct RuleAction {
+    pub input: String,
+    pub output: String
+}
+
+#[derive(Serialize)]
+pub struct Rule {
+    pub task: String,
+    pub actions: Vec<RuleAction>
+}
+
+#[derive(Serialize)]
 pub struct MainConfig {
     pub tasks: Vec<String>,
     pub rules: Vec<String>,

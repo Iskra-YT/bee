@@ -24,10 +24,17 @@ pub fn run_init() -> Result<()> {
     yaml::writer::save_yaml("bee/tasks/test.yml", &task_test_config)?;
     println!("Created sample tasks/test.yml");
 
+    let pipeline_main_config = parser::Pipeline {
+        tasks: vec![String::from("build"), String::from("test")],
+    };
+
+    yaml::writer::save_yaml("bee/pipelines/main.yml", &pipeline_main_config)?;
+    println!("Created sample pipelines/main.yml");
+
     let main_config = parser::MainConfig {
         tasks: vec![String::from("build"), String::from("test")],
         rules: vec![],
-        pipelines: vec![]
+        pipelines: vec![String::from("main")]
     };
 
     yaml::writer::save_yaml("bee/config.yml", &main_config)?;
