@@ -1,7 +1,7 @@
 mod cli;
 mod run;
 mod init;
-mod parser;
+pub mod parser;
 mod yaml;
 mod file;
 mod list;
@@ -15,6 +15,11 @@ fn main() {
 
     match cli.command {
         cli::Commands::Run {  } => {
+            if !file::check_bee_directory() {
+                eprintln!("Error: run bee init first");
+                return;
+            }
+
             run::run_all();
         },
 
@@ -24,25 +29,45 @@ fn main() {
         },
 
         cli::Commands::List => {
-            list::list_pipelines().unwrap_or_else(|e| eprint!("Error listing pipelines: {}", e));
+            if !file::check_bee_directory() {
+                eprintln!("Error: run bee init first");
+                return;
+            }
+
+            list::list_pipelines().unwrap_or_else(|e| eprintln!("Error listing pipelines: {}", e));
             println!("");
-            list::list_tasks().unwrap_or_else(|e| eprint!("Error listing tasks: {}", e));
+            list::list_tasks().unwrap_or_else(|e| eprintln!("Error listing tasks: {}", e));
             println!("");
-            list::list_rules().unwrap_or_else(|e| eprint!("Error listing rules: {}", e));
+            list::list_rules().unwrap_or_else(|e| eprintln!("Error listing rules: {}", e));
         }
 
         cli::Commands::Pipeline(pipeline_args) => {
             match pipeline_args.command {
                 cli::PipelineCommand::Run { name } => {
-                    run::run_pipeline(name);
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
+                    run::run_pipeline(name, None);
                 },
 
                 cli::PipelineCommand::List => {
-                   list::list_pipelines().unwrap_or_else(|e| eprint!("Error listing pipelines: {}", e));
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
+                   list::list_pipelines().unwrap_or_else(|e| eprintln!("Error listing pipelines: {}", e));
                 },
 
                 cli::PipelineCommand::Add { name } => {
-                    add::create_pipeline(&name).unwrap_or_else(|e| eprint!("Error creating pipeline: {}", e));
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
+                    add::create_pipeline(&name).unwrap_or_else(|e| eprintln!("Error creating pipeline: {}", e));
                 }
             }
         },
@@ -50,15 +75,30 @@ fn main() {
         cli::Commands::Task(task_args) => {
             match task_args.command {
                 cli::TaskCommand::Run { name } => {
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
                     run::run_task(name);
-                }
+                },
 
                 cli::TaskCommand::List => {
-                    list::list_tasks().unwrap_or_else(|e| eprint!("Error listing tasks: {}", e));
-                }
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
+                    list::list_tasks().unwrap_or_else(|e| eprintln!("Error listing tasks: {}", e));
+                },
 
                 cli::TaskCommand::Add { name } => {
-                    add::create_task(&name).unwrap_or_else(|e| eprint!("Error creating task: {}", e));
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
+                    add::create_task(&name).unwrap_or_else(|e| eprintln!("Error creating task: {}", e));
                 }
             }
         }
@@ -66,11 +106,21 @@ fn main() {
         cli::Commands::Rule(rule_args) => {
             match rule_args.command {
                 cli::RuleCommand::List => {
-                    list::list_rules().unwrap_or_else(|e| eprint!("Error listing rules: {}", e));
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
+                    list::list_rules().unwrap_or_else(|e| eprintln!("Error listing rules: {}", e));
                 },
 
                 cli::RuleCommand::Add { name } => {
-                    add::create_rule(&name).unwrap_or_else(|e| eprint!("Error creating rule: {}", e));
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
+                    add::create_rule(&name).unwrap_or_else(|e| eprintln!("Error creating rule: {}", e));
                 }
             }
         }

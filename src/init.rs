@@ -25,6 +25,7 @@ pub fn run_init() -> Result<()> {
     println!("Created sample tasks/test.yml");
 
     let pipeline_main_config = parser::Pipeline {
+        name: String::from("main"),
         tasks: vec![String::from("build"), String::from("test")],
     };
 

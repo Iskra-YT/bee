@@ -13,3 +13,7 @@ pub fn write_file_content(path: &String, content: &String) -> Result<()> {
     fs::write(path, content)?;
     Ok(())
 }
+
+pub fn check_bee_directory() -> bool {
+    fs::metadata("./bee").is_ok()
+}

@@ -17,6 +17,7 @@ pub fn create_task(name: &String) -> Result<()> {
 
 pub fn create_pipeline(name: &String) -> Result<()> {
     let pipeline_config = parser::Pipeline {
+        name: name.clone(),
         tasks: vec![],
     };
 

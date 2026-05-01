@@ -10,6 +10,7 @@ pub struct Task {
 
 #[derive(Serialize)]
 pub struct Pipeline {
+    pub name: String,
     pub tasks: Vec<String>
 }
 
