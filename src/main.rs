@@ -29,7 +29,7 @@ fn main() {
                 },
 
                 cli::PipelineCommand::List => {
-                   list::list_pipelines();
+                   list::list_pipelines().unwrap_or_else(|e| eprintln!("Error listing pipelines: {}", e));
                 }
             }
         },
@@ -41,7 +41,7 @@ fn main() {
                 }
 
                 cli::TaskCommand::List => {
-                    list::list_tasks();
+                    list::list_tasks().unwrap_or_else(|e| eprintln!("Error listing tasks: {}", e));
                 }
             }
         }
@@ -49,7 +49,7 @@ fn main() {
         cli::Commands::Rule(rule_args) => {
             match rule_args.command {
                 cli::RuleCommand::List => {
-                    list::list_rules();
+                    list::list_rules().unwrap_or_else(|e| eprintln!("Error listing rules: {}", e));
                 }
             }
         }

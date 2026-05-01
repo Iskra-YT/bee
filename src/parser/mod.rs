@@ -3,7 +3,7 @@ pub mod reader;
 use serde::Serialize;
 
 #[derive(Serialize)]
-pub struct TaskConfig {
+pub struct Task {
     pub run: String,
     pub depends_on: Option<Vec<String>>
 }
@@ -15,14 +15,14 @@ pub struct MainConfig {
     pub pipelines: Vec<String>
 }
 
-pub struct Pipeline {
+pub struct PipelineConfig {
     pub name: String
 }
 
-pub struct Task {
+pub struct TaskConfig {
     pub name: String
 }
 
-pub struct Rule {
+pub struct RuleConfig  {
     pub name: String
 }

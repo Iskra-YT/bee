@@ -8,7 +8,7 @@ pub fn run_init() -> Result<()> {
         fs::create_dir_all(dir)?;
     }
 
-    let task_build_config = parser::TaskConfig {
+    let task_build_config = parser::Task {
         run: String::from("echo \"Building...!\""),
         depends_on: Some(vec![]),
     };
@@ -16,7 +16,7 @@ pub fn run_init() -> Result<()> {
     yaml::writer::save_yaml("bee/tasks/build.yml", &task_build_config)?;
     println!("Created sample tasks/build.yml");
 
-    let task_test_config = parser::TaskConfig {
+    let task_test_config = parser::Task {
         run: String::from("echo \"Testing...!\""),
         depends_on: Some(vec![String::from("build")]),
     };
