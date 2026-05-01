@@ -1,6 +1,6 @@
 pub mod reader;
 
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 #[derive(Serialize)]
 pub struct Task {
@@ -25,13 +25,22 @@ pub struct Pipeline {
     pub tasks: Vec<String>
 }
 
-#[derive(Serialize)]
+impl Pipeline {
+    pub fn clone (&self) -> Pipeline {
+        Pipeline {
+            name: self.name.clone(),
+            tasks: self.tasks.clone()
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct RuleAction {
     pub input: String,
     pub output: String
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Rule {
     pub task: String,
     pub actions: Vec<RuleAction>

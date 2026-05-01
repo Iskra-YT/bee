@@ -1,14 +1,18 @@
 use crate::run::dag;
 use anyhow::Result;
+use crate::run::parallel;
 
 pub fn run_pipeline(config: crate::parser::Pipeline) -> Result<()> {
     println!("Running pipeline: {}", config.name);
-    let (task_order, graph) = dag::build_dag(config)?;
+    let (task_order, graph) = dag::build_dag(config.clone())?;
 
-    for (i, node) in task_order.iter().enumerate() {
-        let task = &graph[*node];
-        println!("Running task {}: {}", i + 1, task.name);
-        println!("Command: {}", task.run);
+    let order = parallel::find_parallel_groups(&graph, &task_order);
+    
+    for (i, layer) in order.iter().enumerate() {
+        for (j, index) in layer.iter().enumerate() {
+            let task = &graph[*index];
+            println!("{i}:   {j} - {}: {} ", task.name, task.run)
+        }
     }
     Ok(())
 }

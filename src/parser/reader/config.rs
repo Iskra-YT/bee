@@ -1,4 +1,4 @@
-use crate::parser::{Pipeline, PipelineConfig, RuleConfig, TaskConfig, Task};
+use crate::parser::{Pipeline, PipelineConfig, Rule, RuleConfig, Task, TaskConfig};
 use crate::{file, yaml};
 use anyhow::Result;
 
@@ -87,4 +87,12 @@ pub fn read_task_from_string(content: &String, name: &String) -> Result<Task> {
     }
 
     Err(anyhow::anyhow!("Invalid task YAML format"))
+}
+
+pub fn read_rules_from_string(content: &String) -> Result<Rule> {
+    if let Ok(rule) = serde_yaml::from_str::<Rule>(content) {
+        return Ok(rule);
+    }
+
+    Err(anyhow::anyhow!("Invalid rule YAML format"))
 }

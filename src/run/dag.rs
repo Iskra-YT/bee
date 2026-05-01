@@ -3,8 +3,8 @@ use crate::file;
 use crate::parser::Task;
 use crate::parser::reader::config as reader;
 use petgraph::algo::toposort;
-use petgraph::graph::DiGraph;
-use petgraph::prelude::NodeIndex;
+pub use petgraph::graph::DiGraph;
+pub use petgraph::prelude::NodeIndex;
 
 pub fn build_dag(config: crate::parser::Pipeline) -> Result<(Vec<NodeIndex>, DiGraph<Task, ()>)> {
     let mut graph = DiGraph::<Task, ()>::new();
