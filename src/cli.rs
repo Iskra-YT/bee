@@ -13,6 +13,7 @@ pub enum Commands {
     Init,
     Pipeline(PipelineArgs),
     Task(TaskArgs),
+    Rule(RuleArgs)
 }
 
 #[derive(Args)]
@@ -26,6 +27,8 @@ pub enum PipelineCommand {
     Run {
         name: String,
     },
+
+    List,
 }
 
 #[derive(Args)]
@@ -39,4 +42,17 @@ pub enum TaskCommand {
     Run {
         name: String,
     },
+
+    List,
+}
+
+#[derive(Args)]
+pub struct RuleArgs {
+    #[command(subcommand)]
+    pub command: RuleCommand,
+}
+
+#[derive(Subcommand)]
+pub enum RuleCommand {
+    List
 }
