@@ -1,4 +1,4 @@
-use crate::parser::{Pipeline, PipelineConfig, RuleConfig, TaskConfig};
+use crate::parser::{Pipeline, PipelineConfig, RuleConfig, TaskConfig, Task};
 use crate::{file, yaml};
 use anyhow::Result;
 
@@ -59,4 +59,32 @@ pub fn read_pipelines() -> Result<Vec<Pipeline>> {
     }
 
     Ok(res)
+}
+
+pub fn read_pipeline_from_string(content: &String) -> Result<Pipeline> {
+    let pipeline_yaml = yaml::reader::parse_yaml_file(content)?;
+
+    if let Some(name) = pipeline_yaml.get("name").and_then(|n| n.as_str()) {
+        if let Some(tasks) = pipeline_yaml.get("tasks").and_then(|t| t.as_sequence()) {
+            let task_names = tasks.iter().filter_map(|t| t.as_str()).map(|s| s.to_string()).collect();
+            return Ok(Pipeline { name: name.to_string(), tasks: task_names });
+        }
+    }
+
+    Err(anyhow::anyhow!("Invalid pipeline YAML format"))
+}
+
+pub fn read_task_from_string(content: &String, name: &String) -> Result<Task> {
+    let task_yaml = yaml::reader::parse_yaml_file(content)?;
+
+    if let Some(run) = task_yaml.get("run").and_then(|r| r.as_str()) {
+        let depends_on = task_yaml.get("depends_on")
+            .and_then(|d| d.as_sequence())
+            .map(|seq| seq.iter().filter_map(|t| t.as_str()).map(|s| s.to_string()).collect())
+            .unwrap_or_else(|| vec![]);
+
+        return Ok(Task { name: name.clone(), run: run.to_string(), depends_on: Some(depends_on) });
+    }
+
+    Err(anyhow::anyhow!("Invalid task YAML format"))
 }

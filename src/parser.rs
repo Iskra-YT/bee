@@ -4,8 +4,19 @@ use serde::Serialize;
 
 #[derive(Serialize)]
 pub struct Task {
+    pub name: String,
     pub run: String,
     pub depends_on: Option<Vec<String>>
+}
+
+impl Task {
+    pub fn clone (&self) -> Task {
+        Task {
+            name: self.name.clone(),
+            run: self.run.clone(),
+            depends_on: self.depends_on.clone()
+        }
+    }
 }
 
 #[derive(Serialize)]

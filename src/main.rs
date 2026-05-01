@@ -6,6 +6,8 @@ mod yaml;
 mod file;
 mod list;
 mod add;
+mod time;
+mod hash;
 
 use clap::Parser;
 use cli::Cli;
@@ -14,18 +16,17 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        cli::Commands::Run {  } => {
+        cli::Commands::Run => {
             if !file::check_bee_directory() {
                 eprintln!("Error: run bee init first");
                 return;
             }
 
-            run::run_all();
+            run::run_all().unwrap_or_else(|e| eprintln!("Error running pipelines: {}", e));
         },
 
         cli::Commands::Init => {
             init::run_init().unwrap();
-            println!("Initialization complete!");
         },
 
         cli::Commands::List => {
@@ -49,7 +50,7 @@ fn main() {
                         return;
                     }
 
-                    run::run_pipeline(name, None);
+                    run::run_pipeline(name, None).unwrap_or_else(|e| eprintln!("Error running pipeline: {}", e));
                 },
 
                 cli::PipelineCommand::List => {
@@ -80,7 +81,7 @@ fn main() {
                         return;
                     }
 
-                    run::run_task(name);
+                    run::run_task(name).unwrap_or_else(|e| eprintln!("Error running task: {}", e));
                 },
 
                 cli::TaskCommand::List => {

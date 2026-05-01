@@ -5,6 +5,7 @@ use crate::yaml;
 
 pub fn create_task(name: &String) -> Result<()> {
     let task_config = parser::Task {
+        name: name.clone(),
         run: format!("echo \"Running {}...\"", name),
         depends_on: None,
     };
