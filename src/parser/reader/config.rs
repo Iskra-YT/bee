@@ -3,7 +3,7 @@ use crate::{file, yaml};
 use anyhow::Result;
 
 pub fn read_pipelines_config() -> Result<Vec<PipelineConfig>> {
-    let yaml_content = file::get_file_content(&String::from("./bee/config.yml"))?;
+    let yaml_content = file::get_file_content(&String::from("./bee/system/config.yml"))?;
     Ok(yaml::reader::parse_yaml_file(&yaml_content)?
         .get("pipelines")
         .and_then(|p| p.as_sequence())
@@ -17,7 +17,7 @@ pub fn read_pipelines_config() -> Result<Vec<PipelineConfig>> {
 }
 
 pub fn read_tasks_config() -> Result<Vec<TaskConfig>> {
-    let yaml_content = file::get_file_content(&String::from("./bee/config.yml"))?;
+    let yaml_content = file::get_file_content(&String::from("./bee/system/config.yml"))?;
     Ok(yaml::reader::parse_yaml_file(&yaml_content)?
         .get("tasks")
         .and_then(|p| p.as_sequence())
@@ -31,7 +31,7 @@ pub fn read_tasks_config() -> Result<Vec<TaskConfig>> {
 }
 
 pub fn read_rules_config() -> Result<Vec<RuleConfig>> {
-    let yaml_content = file::get_file_content(&String::from("./bee/config.yml"))?;
+    let yaml_content = file::get_file_content(&String::from("./bee/system/config.yml"))?;
     Ok(yaml::reader::parse_yaml_file(&yaml_content)?
         .get("rules")
         .and_then(|p| p.as_sequence())

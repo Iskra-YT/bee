@@ -7,7 +7,7 @@ use crate::time;
 use crate::file;
 
 pub fn run_init() -> Result<()> {
-    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache"] {
+    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/system/hash"].iter() {
         fs::create_dir_all(dir)?;
     }
 
@@ -43,12 +43,18 @@ pub fn run_init() -> Result<()> {
         pipelines: vec![String::from("main")]
     };
 
-    yaml::writer::save_yaml("bee/config.yml", &main_config)?;
+    yaml::writer::save_yaml("bee/system/config.yml", &main_config)?;
     println!("Created main config file");
 
     let init_proof: String = hash::hash_string(time::get_timestamp_string().as_str());
-    file::write_file_content(&String::from("bee/cache/init"), &init_proof)?;
-    println!("Initialization complete! Hash: {}", init_proof.chars().take(8).collect::<String>());
+    file::write_file_content(&String::from("bee/system/init"), &init_proof)?;
 
+    let init_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/init"))?);
+    file::write_file_content(&String::from("bee/system/hash/init"), &init_hash)?;
+
+    let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
+    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
+
+    println!("Initialization complete! Hash: {}", init_proof.chars().take(8).collect::<String>());
     Ok(())
 }

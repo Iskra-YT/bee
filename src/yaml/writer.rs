@@ -1,8 +1,8 @@
 use anyhow::Result;
-use std::fs;
+use crate::file;
 
 pub fn save_yaml<T: serde::Serialize>(path: &str, data: &T) -> Result<()> {
     let yaml = serde_yaml::to_string(data)?;
-    fs::write(path, yaml)?;
+    file::write_file_content(&String::from(path), &yaml)?;
     Ok(())
 }

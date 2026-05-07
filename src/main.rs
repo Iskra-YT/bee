@@ -26,7 +26,7 @@ fn main() {
         },
 
         cli::Commands::Init => {
-            init::run_init().unwrap();
+            init::run_init().unwrap_or_else(|e| eprintln!("Error initializing bee: {}", e));
         },
 
         cli::Commands::List => {

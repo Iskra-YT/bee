@@ -8,11 +8,8 @@ pub fn run_pipeline(config: crate::parser::Pipeline) -> Result<()> {
 
     let order = parallel::find_parallel_groups(&graph, &task_order);
     
-    for (i, layer) in order.iter().enumerate() {
-        for (j, index) in layer.iter().enumerate() {
-            let task = &graph[*index];
-            println!("{i}:   {j} - {}: {} ", task.name, task.run)
-        }
+    for layer in order.iter() {
+        parallel::run_parallel_tasks(&graph, layer.clone())?;
     }
     Ok(())
 }

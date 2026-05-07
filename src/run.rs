@@ -1,6 +1,7 @@
 mod pipeline;
 pub mod dag;
 mod parallel;
+mod tasks;
 
 use anyhow::Result;
 use crate::parser::reader::config as parser;

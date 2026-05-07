@@ -1,4 +1,7 @@
+use crate::run::tasks;
 use crate::{parser::Task, run::dag};
+use anyhow::Result;
+use std::thread;
 
 pub fn find_parallel_groups(
     graph: &dag::DiGraph<Task, ()>,
@@ -38,4 +41,26 @@ pub fn find_parallel_groups(
     }
 
     groups
+}
+
+pub fn run_parallel_tasks(
+    graph: &dag::DiGraph<Task, ()>,
+    group: Vec<dag::NodeIndex>,
+) -> Result<()> {
+    let mut handles = vec![];
+
+    for node in group {
+        let task = graph[node].clone();
+        let handle = thread::spawn(move || -> Result<()> {
+            tasks::run_task(task)?;
+            Ok(())
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap()?;
+    }
+
+    Ok(())
 }
