@@ -7,7 +7,8 @@ use crate::time;
 use crate::file;
 
 pub fn run_init() -> Result<()> {
-    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/system/hash"].iter() {
+    let _ = fs::remove_dir_all("bee");
+    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/system/hash/state", "bee/system/state"].iter() {
         fs::create_dir_all(dir)?;
     }
 

@@ -12,6 +12,7 @@ pub enum Commands {
     Run,
     Init,
     List,
+    Backup,
     Pipeline(PipelineArgs),
     Task(TaskArgs),
     Rule(RuleArgs)
@@ -29,7 +30,7 @@ pub enum PipelineCommand {
         name: String,
     },
 
-    Add {
+    Create {
         name: String,
     },
 
@@ -48,7 +49,7 @@ pub enum TaskCommand {
         name: String,
     },
 
-    Add {
+    Create {
         name: String,
     },
 
@@ -65,7 +66,7 @@ pub struct RuleArgs {
 pub enum RuleCommand {
     List,
 
-    Add {
+    Create {
         name: String,
     }
 }

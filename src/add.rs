@@ -1,6 +1,8 @@
 use anyhow::Result;
 use crate::parser;
 use crate::yaml;
+use crate::file;
+use crate::hash;
 
 
 pub fn create_task(name: &String) -> Result<()> {
@@ -11,7 +13,10 @@ pub fn create_task(name: &String) -> Result<()> {
     };
 
     yaml::writer::save_yaml(&format!("bee/tasks/{}.yml", name), &task_config)?;
-    yaml::modify::append_to_yaml_list(&String::from("bee/config.yml"), &String::from("tasks"), name)?;
+    yaml::modify::append_to_yaml_list(&String::from("bee/system/config.yml"), &String::from("tasks"), name)?;
+
+    let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
+    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
     Ok(())
 }
@@ -23,7 +28,10 @@ pub fn create_pipeline(name: &String) -> Result<()> {
     };
 
     yaml::writer::save_yaml(&format!("bee/pipelines/{}.yml", name), &pipeline_config)?;
-    yaml::modify::append_to_yaml_list(&String::from("bee/config.yml"), &String::from("pipelines"), name)?;
+    yaml::modify::append_to_yaml_list(&String::from("bee/system/config.yml"), &String::from("pipelines"), name)?;
+
+    let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
+    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
     Ok(())
 }
@@ -38,7 +46,10 @@ pub fn create_rule(name: &String) -> Result<()> {
     };
 
     yaml::writer::save_yaml(&format!("bee/rules/{}.yml", name), &rule_config)?;
-    yaml::modify::append_to_yaml_list(&String::from("bee/config.yml"), &String::from("rules"), name)?;
+    yaml::modify::append_to_yaml_list(&String::from("bee/system/config.yml"), &String::from("rules"), name)?;
+
+    let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
+    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
     Ok(())
 }

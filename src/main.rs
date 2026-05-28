@@ -8,6 +8,7 @@ mod list;
 mod add;
 mod time;
 mod hash;
+mod backup;
 
 use clap::Parser;
 use cli::Cli;
@@ -42,6 +43,15 @@ fn main() {
             list::list_rules().unwrap_or_else(|e| eprintln!("Error listing rules: {}", e));
         }
 
+        cli::Commands::Backup => {
+            if !file::check_bee_directory() {
+                eprintln!("Error: run bee init first");
+                return;
+            }
+
+            backup::make_backup().unwrap_or_else(|e| eprintln!("Error creating backup: {}", e));
+        }
+
         cli::Commands::Pipeline(pipeline_args) => {
             match pipeline_args.command {
                 cli::PipelineCommand::Run { name } => {
@@ -62,7 +72,7 @@ fn main() {
                    list::list_pipelines().unwrap_or_else(|e| eprintln!("Error listing pipelines: {}", e));
                 },
 
-                cli::PipelineCommand::Add { name } => {
+                cli::PipelineCommand::Create { name } => {
                     if !file::check_bee_directory() {
                         eprintln!("Error: run bee init first");
                         return;
@@ -93,7 +103,7 @@ fn main() {
                     list::list_tasks().unwrap_or_else(|e| eprintln!("Error listing tasks: {}", e));
                 },
 
-                cli::TaskCommand::Add { name } => {
+                cli::TaskCommand::Create { name } => {
                     if !file::check_bee_directory() {
                         eprintln!("Error: run bee init first");
                         return;
@@ -115,7 +125,7 @@ fn main() {
                     list::list_rules().unwrap_or_else(|e| eprintln!("Error listing rules: {}", e));
                 },
 
-                cli::RuleCommand::Add { name } => {
+                cli::RuleCommand::Create { name } => {
                     if !file::check_bee_directory() {
                         eprintln!("Error: run bee init first");
                         return;
