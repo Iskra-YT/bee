@@ -73,7 +73,6 @@ pub fn read_pipeline_from_string(content: &String) -> Result<Pipeline> {
 
     Err(anyhow::anyhow!("Invalid pipeline YAML format"))
 }
-
 pub fn read_task_from_string(content: &String, name: &String) -> Result<Task> {
     let task_yaml = yaml::reader::parse_yaml_file(content)?;
 
@@ -83,7 +82,11 @@ pub fn read_task_from_string(content: &String, name: &String) -> Result<Task> {
             .map(|seq| seq.iter().filter_map(|t| t.as_str()).map(|s| s.to_string()).collect())
             .unwrap_or_else(|| vec![]);
 
-        return Ok(Task { name: name.clone(), run: run.to_string(), depends_on: Some(depends_on) });
+        return Ok(Task { 
+            name: name.clone(), 
+            run: run.to_string(), 
+            depends_on: Some(depends_on)
+        });
     }
 
     Err(anyhow::anyhow!("Invalid task YAML format"))

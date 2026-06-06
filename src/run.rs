@@ -1,7 +1,8 @@
 mod pipeline;
 pub mod dag;
 mod parallel;
-mod tasks;
+pub mod tasks;
+pub mod cache;
 
 use anyhow::Result;
 use crate::parser::reader::config as parser;
@@ -35,6 +36,10 @@ pub fn run_all() -> Result<()>{
 }
 
 pub fn run_task(name: String) -> Result<()> {
-    println!("Running task: {}", name);
+    let task_file = format!("bee/tasks/{}.yml", name);
+    let content = crate::file::get_file_content(&task_file)?;
+    let task = parser::read_task_from_string(&content, &name)?;
+    
+    tasks::run_task(task)?;
     Ok(())
 }
