@@ -15,7 +15,7 @@ pub fn run_pipeline(name: String, config: Option<crate::parser::Pipeline>) -> Re
         if let Some(pipeline) = pipelines.into_iter().find(|p| p.name == name) {
             pipeline::run_pipeline(pipeline)?;
         } else {
-            eprintln!("Pipeline '{}' not found", name);
+            eprintln!("[bee/error] Pipeline '{}' not found", name);
         }
     }
 
@@ -24,7 +24,7 @@ pub fn run_pipeline(name: String, config: Option<crate::parser::Pipeline>) -> Re
 
 pub fn run_all() -> Result<()>{
     let pipelines = parser::read_pipelines().unwrap_or_else(|e| {
-        eprint!("Error reading pipelines: {}", e);
+        eprint!("[bee/error] Error reading pipelines: {}", e);
         vec![]
     });
 

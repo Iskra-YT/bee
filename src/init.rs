@@ -19,7 +19,7 @@ pub fn run_init() -> Result<()> {
     };
 
     yaml::writer::save_yaml("bee/tasks/build.yml", &task_build_config)?;
-    println!("Created sample tasks/build.yml");
+    println!("[bee/info] Created sample tasks/build.yml");
 
     let task_test_config = parser::Task {
         name: String::from("test"),
@@ -28,7 +28,7 @@ pub fn run_init() -> Result<()> {
     };
 
     yaml::writer::save_yaml("bee/tasks/test.yml", &task_test_config)?;
-    println!("Created sample tasks/test.yml");
+    println!("[bee/info] Created sample tasks/test.yml");
 
     let pipeline_main_config = parser::Pipeline {
         name: String::from("main"),
@@ -36,7 +36,7 @@ pub fn run_init() -> Result<()> {
     };
 
     yaml::writer::save_yaml("bee/pipelines/main.yml", &pipeline_main_config)?;
-    println!("Created sample pipelines/main.yml");
+    println!("[bee/info] Created sample pipelines/main.yml");
 
     let main_config = parser::MainConfig {
         tasks: vec![String::from("build"), String::from("test")],
@@ -45,7 +45,7 @@ pub fn run_init() -> Result<()> {
     };
 
     yaml::writer::save_yaml("bee/system/config.yml", &main_config)?;
-    println!("Created main config file");
+    println!("[bee/info] Created main config file");
 
     let init_proof: String = hash::hash_string(time::get_timestamp_string().as_str());
     file::write_file_content(&String::from("bee/system/init"), &init_proof)?;
@@ -56,6 +56,6 @@ pub fn run_init() -> Result<()> {
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
     file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
-    println!("Initialization complete! Hash: {}", init_proof.chars().take(8).collect::<String>());
+    println!("[bee/info] Initialization complete! Hash: {}", init_proof.chars().take(8).collect::<String>());
     Ok(())
 }

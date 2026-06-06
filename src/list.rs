@@ -3,9 +3,9 @@ use anyhow::Result;
 
 pub fn list_pipelines() -> Result<()> {
     let pipelines = reader::read_pipelines_config()?;
-    println!("Available pipelines:");
+    println!("[bee/info] Available pipelines:");
     for pipeline in pipelines {
-        println!("\t{}", pipeline.name);
+        println!("[bee/info] \t{}", pipeline.name);
     }
 
     Ok(())
@@ -13,9 +13,9 @@ pub fn list_pipelines() -> Result<()> {
 
 pub fn list_tasks() -> Result<()> {
     let tasks = reader::read_tasks_config()?;
-    println!("Available tasks:");
+    println!("[bee/info] Available tasks:");
     for task in tasks {
-        println!("\t{}", task.name);
+        println!("[bee/info] \t{}", task.name);
     }
 
     Ok(())
@@ -23,9 +23,9 @@ pub fn list_tasks() -> Result<()> {
 
 pub fn list_rules() -> Result<()> {
     let rules = reader::read_rules_config()?;
-    println!("Available rules:");
+    println!("[bee/info] Available rules:");
     for rule in rules {
-        println!("\t{}", rule.name);
+        println!("[bee/info] \t{}", rule.name);
     }
 
     Ok(())

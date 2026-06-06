@@ -16,19 +16,19 @@ pub fn run_task(task: Task) -> anyhow::Result<()> {
         let outputs_ok = cache::check_outputs_exist(&rule);
 
         if Some(current_hash.clone()) == last_hash && outputs_ok {
-            println!("Skipping task: {} (up-to-date)", task.name);
+            println!("[bee/info] Skipping task: {} (up-to-date)", task.name);
             return Ok(());
         }
 
-        println!("Running task: {}", task.name);
+        println!("[bee/info] Running task: {}", task.name);
 
         let command = run_command(&task.run)?;
-        print!("{}", command.0);
-        eprint!("{}", command.1);
+        print!("[bee/info] {}", command.0);
+        eprint!("[bee/error] {}", command.1);
 
         cache::save_run_hash(&task.name, &current_hash)?;
     } else {
-        println!("Running task: {}", task.name);
+        println!("[bee/info] Running task: {}", task.name);
         
         let command = run_command(&task.run)?;
         print!("{}", command.0);

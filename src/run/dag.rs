@@ -33,7 +33,7 @@ pub fn build_dag(config: crate::parser::Pipeline) -> Result<(Vec<NodeIndex>, DiG
                     graph.add_edge(node_indices[dep_index], node_indices[i], ());
                 } else {
                     eprintln!(
-                        "Warning: Task '{}' depends on unknown task '{}'",
+                        "[bee/error] Warning: Task '{}' depends on unknown task '{}'",
                         task.name, dep
                     );
                 }
