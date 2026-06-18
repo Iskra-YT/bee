@@ -24,11 +24,3 @@ pub fn hash_file(path: &str) -> io::Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-pub fn hash_string_with_salt(input: &str, salt: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(input.as_bytes());
-    hasher.update(salt.as_bytes());
-
-    let result = hasher.finalize();
-    hex::encode(result)
-}

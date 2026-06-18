@@ -14,10 +14,25 @@ pub enum Commands {
     List,
     Status,
     Graph(GraphArgs),
-    Backup,
+    Backup(BackupArgs),
     Pipeline(PipelineArgs),
     Task(TaskArgs),
     Rule(RuleArgs)
+}
+
+#[derive(Args)]
+pub struct BackupArgs {
+    #[command(subcommand)]
+    pub command: BackupCommand,
+}
+
+#[derive(Subcommand)]
+pub enum BackupCommand {
+    Create,
+    List,
+    Restore {
+        hash: String,
+    },
 }
 
 #[derive(Args)]

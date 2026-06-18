@@ -7,8 +7,12 @@ use crate::time;
 use crate::file;
 
 pub fn run_init() -> Result<()> {
+    if file::check_bee_directory() {
+        println!("[bee/info] bee is already initialized in this directory");
+        return Ok(());
+    }
     let _ = fs::remove_dir_all("bee");
-    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/system/hash/state", "bee/system/state"].iter() {
+    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/system", "bee/system/hash"].iter() {
         fs::create_dir_all(dir)?;
     }
 

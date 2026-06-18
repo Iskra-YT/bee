@@ -8,7 +8,7 @@ mod list;
 mod add;
 mod time;
 mod hash;
-mod backup;
+mod system;
 mod graph;
 mod status;
 
@@ -86,13 +86,23 @@ fn main() {
             }
         }
 
-        cli::Commands::Backup => {
+        cli::Commands::Backup(backup_args) => {
             if !file::check_bee_directory() {
                 eprintln!("[bee/error] Error: run bee init first");
                 return;
             }
 
-            backup::make_backup().unwrap_or_else(|e| eprintln!("[bee/error] Error creating backup: {}", e));
+            match backup_args.command {
+                cli::BackupCommand::Create => {
+                    system::backup::make_backup().unwrap_or_else(|e| eprintln!("[bee/error] Error creating backup: {}", e));
+                },
+                cli::BackupCommand::List => {
+                    system::backup::list_backups().unwrap_or_else(|e| eprintln!("[bee/error] Error listing backups: {}", e));
+                },
+                cli::BackupCommand::Restore { hash } => {
+                    system::backup::restore(&hash).unwrap_or_else(|e| eprintln!("[bee/error] Error restoring backup: {}", e));
+                },
+            }
         }
 
         cli::Commands::Pipeline(pipeline_args) => {
