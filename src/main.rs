@@ -9,6 +9,8 @@ mod add;
 mod time;
 mod hash;
 mod backup;
+mod graph;
+mod status;
 
 use clap::Parser;
 use cli::Cli;
@@ -41,6 +43,47 @@ fn main() {
             list::list_tasks().unwrap_or_else(|e| eprintln!("[bee/error] Error listing tasks: {}", e));
             println!("[bee/info] ");
             list::list_rules().unwrap_or_else(|e| eprintln!("[bee/error] Error listing rules: {}", e));
+        }
+
+        cli::Commands::Status => {
+            if !file::check_bee_directory() {
+                eprintln!("[bee/error] Error: run bee init first");
+                return;
+            }
+
+            status::show_status().unwrap_or_else(|e| eprintln!("[bee/error] Error showing status: {}", e));
+        }
+
+        cli::Commands::Graph(graph_args) => {
+            if !file::check_bee_directory() {
+                eprintln!("[bee/error] Error: run bee init first");
+                return;
+            }
+
+            match graph_args.command {
+                cli::GraphCommand::All { format } => {
+                    let fmt = match format.as_str() {
+                        "dot" => graph::GraphFormat::Dot,
+                        "mermaid" => graph::GraphFormat::Mermaid,
+                        _ => graph::GraphFormat::Tree,
+                    };
+                    match graph::render_all_pipelines(fmt) {
+                        Ok(output) => println!("{}", output),
+                        Err(e) => eprintln!("[bee/error] Error rendering graph: {}", e),
+                    }
+                },
+                cli::GraphCommand::Pipeline { name, format } => {
+                    let fmt = match format.as_str() {
+                        "dot" => graph::GraphFormat::Dot,
+                        "mermaid" => graph::GraphFormat::Mermaid,
+                        _ => graph::GraphFormat::Tree,
+                    };
+                    match graph::render_pipeline_graph(&name, fmt) {
+                        Ok(output) => println!("{}", output),
+                        Err(e) => eprintln!("[bee/error] Error rendering graph: {}", e),
+                    }
+                },
+            }
         }
 
         cli::Commands::Backup => {

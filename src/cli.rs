@@ -12,10 +12,31 @@ pub enum Commands {
     Run,
     Init,
     List,
+    Status,
+    Graph(GraphArgs),
     Backup,
     Pipeline(PipelineArgs),
     Task(TaskArgs),
     Rule(RuleArgs)
+}
+
+#[derive(Args)]
+pub struct GraphArgs {
+    #[command(subcommand)]
+    pub command: GraphCommand,
+}
+
+#[derive(Subcommand)]
+pub enum GraphCommand {
+    All {
+        #[arg(default_value = "tree")]
+        format: String,
+    },
+    Pipeline {
+        name: String,
+        #[arg(default_value = "tree")]
+        format: String,
+    },
 }
 
 #[derive(Args)]
