@@ -6,6 +6,7 @@ mod yaml;
 mod file;
 mod list;
 mod add;
+mod delete;
 mod time;
 mod hash;
 mod system;
@@ -132,6 +133,15 @@ fn main() {
                     }
 
                     add::create_pipeline(&name).unwrap_or_else(|e| eprintln!("[bee/error] Error creating pipeline: {}", e));
+                },
+
+                cli::PipelineCommand::Delete { name } => {
+                    if !file::check_bee_directory() {
+                        eprintln!("[bee/error] Error: run bee init first");
+                        return;
+                    }
+
+                    delete::delete_pipeline(&name).unwrap_or_else(|e| eprintln!("[bee/error] Error deleting pipeline: {}", e));
                 }
             }
         },
@@ -163,6 +173,15 @@ fn main() {
                     }
 
                     add::create_task(&name).unwrap_or_else(|e| eprintln!("[bee/error] Error creating task: {}", e));
+                },
+
+                cli::TaskCommand::Delete { name } => {
+                    if !file::check_bee_directory() {
+                        eprintln!("[bee/error] Error: run bee init first");
+                        return;
+                    }
+
+                    delete::delete_task(&name).unwrap_or_else(|e| eprintln!("[bee/error] Error deleting task: {}", e));
                 }
             }
         }
@@ -185,6 +204,15 @@ fn main() {
                     }
 
                     add::create_rule(&name).unwrap_or_else(|e| eprintln!("[bee/error] Error creating rule: {}", e));
+                },
+
+                cli::RuleCommand::Delete { name } => {
+                    if !file::check_bee_directory() {
+                        eprintln!("[bee/error] Error: run bee init first");
+                        return;
+                    }
+
+                    delete::delete_rule(&name).unwrap_or_else(|e| eprintln!("[bee/error] Error deleting rule: {}", e));
                 }
             }
         }

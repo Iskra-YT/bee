@@ -17,3 +17,17 @@ pub fn append_to_yaml_list(path: &String, list_name: &String, new_value: &String
 
     Ok(())
 }
+
+pub fn remove_from_yaml_list(path: &String, list_name: &String, value: &String) -> Result<()> {
+    let content = file::get_file_content(path)?;
+    let mut yaml: Value = serde_yaml::from_str(&content)?;
+
+    if let Some(list) = yaml.get_mut(list_name).and_then(|v| v.as_sequence_mut()) {
+        list.retain(|item| item != value);
+    }
+
+    let new_content = serde_yaml::to_string(&yaml)?;
+    file::write_file_content(path, &new_content)?;
+
+    Ok(())
+}

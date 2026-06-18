@@ -70,6 +70,10 @@ pub enum PipelineCommand {
         name: String,
     },
 
+    Delete {
+        name: String,
+    },
+
     List,
 }
 
@@ -89,6 +93,10 @@ pub enum TaskCommand {
         name: String,
     },
 
+    Delete {
+        name: String,
+    },
+
     List,
 }
 
@@ -104,5 +112,9 @@ pub enum RuleCommand {
 
     Create {
         name: String,
-    }
+    },
+
+    Delete {
+        name: String,
+    },
 }
