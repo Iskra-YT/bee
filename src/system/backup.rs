@@ -114,7 +114,7 @@ pub fn make_backup() -> Result<()> {
     let backup_path = Path::new(&backup_dir);
 
     if backup_path.exists() {
-        println!("[bee/info] Backup with hash {} already exists, skipping", short_hash);
+        println!("Backup with hash {} already exists, skipping", short_hash);
         return Ok(());
     }
 
@@ -165,10 +165,10 @@ pub fn make_backup() -> Result<()> {
     write_manifest(&manifest)?;
     cleanup_old_backups()?;
 
-    println!("[bee/info] Backup created: {}", backup_dir);
-    println!("[bee/info]   Hash: {}", short_hash);
-    println!("[bee/info]   Date: {}", timestamp);
-    println!("[bee/info]   Weight: {}", weight);
+    println!("Backup created: {}", backup_dir);
+    println!("  Hash: {}", short_hash);
+    println!("  Date: {}", timestamp);
+    println!("  Weight: {}", weight);
 
     Ok(())
 }
@@ -178,7 +178,7 @@ pub fn list_backups() -> Result<()> {
     let versions: Vec<json::JsonValue> = manifest["versions"].members().cloned().collect();
 
     if versions.is_empty() {
-        println!("[bee/info] No backups found");
+        println!("No backups found");
         return Ok(());
     }
 
@@ -212,7 +212,7 @@ pub fn restore(hash_val: &str) -> Result<()> {
     let backup_path = Path::new(&backup_dir);
 
     if !backup_path.exists() {
-        eprintln!("[bee/error] Backup with hash '{}' not found", hash_val);
+        eprintln!("Error: backup '{}' not found", hash_val);
         return Ok(());
     }
 
@@ -243,9 +243,9 @@ pub fn restore(hash_val: &str) -> Result<()> {
         let meta_content = file::get_file_content(&meta_path.to_string_lossy().to_string())?;
         let meta = json::parse(&meta_content)?;
         let date = meta["date"].as_str().unwrap_or("?");
-        println!("[bee/info] Restored from backup: {} (date: {}, weight: {})", hash_val, date, meta["weight"]);
+        println!("Restored from backup: {} (date: {}, weight: {})", hash_val, date, meta["weight"]);
     } else {
-        println!("[bee/info] Restored from backup: {}", hash_val);
+        println!("Restored from backup: {}", hash_val);
     }
 
     Ok(())

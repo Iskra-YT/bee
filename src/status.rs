@@ -7,22 +7,22 @@ pub fn show_status() -> Result<()> {
     let tasks = reader::read_tasks_config()?;
     let rules = reader::read_rules_config()?;
 
-    println!("[bee/info] Project status");
-    println!("[bee/info]   Pipelines: {}", pipelines.len());
-    println!("[bee/info]   Tasks:     {}", tasks.len());
-    println!("[bee/info]   Rules:     {}", rules.len());
+    println!("Project status");
+    println!("  Pipelines: {}", pipelines.len());
+    println!("  Tasks:     {}", tasks.len());
+    println!("  Rules:     {}", rules.len());
     println!();
 
     if !pipelines.is_empty() {
-        println!("[bee/info] Pipelines:");
+        println!("Pipelines:");
         for p in &pipelines {
-            println!("[bee/info]   {}:", p.name);
+            println!("  {}:", p.name);
             let content = file::get_file_content(&format!("bee/pipelines/{}.yml", p.name));
             if let Ok(c) = content {
                 if let Ok(pipe) = reader::read_pipeline_from_string(&c) {
                     for task_name in &pipe.tasks {
                         let status = get_task_status(task_name);
-                        println!("[bee/info]     {}{}", task_name, status);
+                        println!("    {}{}", task_name, status);
                     }
                 }
             }
@@ -31,9 +31,9 @@ pub fn show_status() -> Result<()> {
     }
 
     if !tasks.is_empty() {
-        println!("[bee/info] Tasks (cached / total):");
+        println!("Tasks (cached / total):");
         let cached = count_cached_tasks(&tasks);
-        println!("[bee/info]   {}/{} tasks cached", cached, tasks.len());
+        println!("  {}/{} tasks cached", cached, tasks.len());
     }
 
     Ok(())

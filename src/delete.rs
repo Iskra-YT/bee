@@ -11,7 +11,7 @@ pub fn delete_task(name: &String) -> Result<()> {
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
     file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
-    println!("[bee/info] Task '{}' deleted", name);
+    println!("Task '{}' deleted", name);
     Ok(())
 }
 
@@ -22,7 +22,7 @@ pub fn delete_pipeline(name: &String) -> Result<()> {
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
     file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
-    println!("[bee/info] Pipeline '{}' deleted", name);
+    println!("Pipeline '{}' deleted", name);
     Ok(())
 }
 
@@ -33,6 +33,6 @@ pub fn delete_rule(name: &String) -> Result<()> {
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
     file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
-    println!("[bee/info] Rule '{}' deleted", name);
+    println!("Rule '{}' deleted", name);
     Ok(())
 }

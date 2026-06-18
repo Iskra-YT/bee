@@ -8,7 +8,7 @@ use crate::file;
 
 pub fn run_init() -> Result<()> {
     if file::check_bee_directory() {
-        println!("[bee/info] bee is already initialized in this directory");
+        println!("bee is already initialized in this directory");
         return Ok(());
     }
     let _ = fs::remove_dir_all("bee");
@@ -23,7 +23,7 @@ pub fn run_init() -> Result<()> {
     };
 
     yaml::writer::save_yaml("bee/tasks/build.yml", &task_build_config)?;
-    println!("[bee/info] Created sample tasks/build.yml");
+    println!("  Created tasks/build.yml");
 
     let task_test_config = parser::Task {
         name: String::from("test"),
@@ -32,7 +32,7 @@ pub fn run_init() -> Result<()> {
     };
 
     yaml::writer::save_yaml("bee/tasks/test.yml", &task_test_config)?;
-    println!("[bee/info] Created sample tasks/test.yml");
+    println!("  Created tasks/test.yml");
 
     let pipeline_main_config = parser::Pipeline {
         name: String::from("main"),
@@ -40,7 +40,7 @@ pub fn run_init() -> Result<()> {
     };
 
     yaml::writer::save_yaml("bee/pipelines/main.yml", &pipeline_main_config)?;
-    println!("[bee/info] Created sample pipelines/main.yml");
+    println!("  Created pipelines/main.yml");
 
     let main_config = parser::MainConfig {
         tasks: vec![String::from("build"), String::from("test")],
@@ -49,7 +49,7 @@ pub fn run_init() -> Result<()> {
     };
 
     yaml::writer::save_yaml("bee/system/config.yml", &main_config)?;
-    println!("[bee/info] Created main config file");
+    println!("  Created system/config.yml");
 
     let init_proof: String = hash::hash_string(time::get_timestamp_string().as_str());
     file::write_file_content(&String::from("bee/system/init"), &init_proof)?;
@@ -60,6 +60,6 @@ pub fn run_init() -> Result<()> {
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
     file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
-    println!("[bee/info] Initialization complete! Hash: {}", init_proof.chars().take(8).collect::<String>());
+    println!("Initialization complete. Hash: {}", init_proof.chars().take(8).collect::<String>());
     Ok(())
 }

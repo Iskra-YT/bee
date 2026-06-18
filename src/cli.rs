@@ -9,6 +9,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    Clean,
     Run,
     Init,
     List,
