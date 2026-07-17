@@ -36,13 +36,11 @@ pub fn create_pipeline(name: &String) -> Result<()> {
     Ok(())
 }
 
-pub fn create_rule(name: &String) -> Result<()> {
+pub fn create_rule(name: &String, task: &String) -> Result<()> {
     let rule_config = parser::Rule {
-        task: name.clone(),
-        actions: vec![parser::RuleAction {
-            input: String::from("input_pattern"),
-            output: String::from("output_pattern"),
-        }]
+        name: name.clone(),
+        task: task.clone(),
+        triggers: vec![parser::RuleTrigger::Manual],
     };
 
     yaml::writer::save_yaml(&format!("bee/rules/{}.yml", name), &rule_config)?;

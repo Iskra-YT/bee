@@ -34,16 +34,41 @@ impl Pipeline {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RuleAction {
-    pub input: String,
-    pub output: String
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Rule {
+    pub name: String,
+    pub task: String,
+    #[serde(default)]
+    pub triggers: Vec<RuleTrigger>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Rule {
-    pub task: String,
-    pub actions: Vec<RuleAction>
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
+pub enum RuleTrigger {
+    #[serde(rename = "file_change")]
+    FileChange { paths: Vec<String> },
+    #[serde(rename = "manual")]
+    Manual,
+    #[serde(rename = "always")]
+    Always,
+    #[serde(rename = "schedule")]
+    Schedule { cron: String },
+    #[serde(rename = "task_completed")]
+    TaskCompleted { task: String },
+    #[serde(rename = "task_failed")]
+    TaskFailed { task: String },
+    #[serde(rename = "dependency_changed")]
+    DependencyChanged { task: String },
+    #[serde(rename = "git_changed")]
+    GitChanged { paths: Vec<String> },
+    #[serde(rename = "git_tag")]
+    GitTag { pattern: Option<String> },
+    #[serde(rename = "env_changed")]
+    EnvChanged { vars: Vec<String> },
+    #[serde(rename = "dependency_missing")]
+    DependencyMissing { path: String },
+    #[serde(rename = "checksum_changed")]
+    ChecksumChanged { paths: Vec<String> },
 }
 
 #[derive(Serialize)]
@@ -63,4 +88,21 @@ pub struct TaskConfig {
 
 pub struct RuleConfig  {
     pub name: String
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Dependency {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub dep_type: String,
+    pub source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DepsConfig {
+    pub dependencies: Vec<Dependency>,
 }

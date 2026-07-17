@@ -18,7 +18,8 @@ pub enum Commands {
     Backup(BackupArgs),
     Pipeline(PipelineArgs),
     Task(TaskArgs),
-    Rule(RuleArgs)
+    Rule(RuleArgs),
+    Install(InstallArgs),
 }
 
 #[derive(Args)]
@@ -113,9 +114,37 @@ pub enum RuleCommand {
 
     Create {
         name: String,
+        #[arg(short, long)]
+        task: String,
     },
 
     Delete {
+        name: String,
+    },
+}
+
+#[derive(Args)]
+pub struct InstallArgs {
+    #[command(subcommand)]
+    pub command: InstallCommand,
+}
+
+#[derive(Subcommand)]
+pub enum InstallCommand {
+    Run,
+    List,
+    Add {
+        name: String,
+        #[arg(short, long)]
+        dep_type: String,
+        #[arg(short, long)]
+        source: String,
+        #[arg(short, long)]
+        version: Option<String>,
+        #[arg(short, long)]
+        command: Option<String>,
+    },
+    Remove {
         name: String,
     },
 }

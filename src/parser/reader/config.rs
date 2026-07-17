@@ -1,4 +1,4 @@
-use crate::parser::{Pipeline, PipelineConfig, Rule, RuleConfig, Task, TaskConfig};
+use crate::parser::{Dependency, DepsConfig, Pipeline, PipelineConfig, Rule, RuleConfig, Task, TaskConfig};
 use crate::{file, yaml};
 use anyhow::Result;
 
@@ -98,4 +98,30 @@ pub fn read_rules_from_string(content: &String) -> Result<Rule> {
     }
 
     Err(anyhow::anyhow!("Invalid rule YAML format"))
+}
+
+pub fn read_rules() -> Result<Vec<Rule>> {
+    let rules_config = read_rules_config()?;
+    let mut rules = Vec::new();
+
+    for rule_config in rules_config {
+        let rule_file = format!("bee/rules/{}.yml", rule_config.name);
+        if let Ok(content) = file::get_file_content(&String::from(&rule_file)) {
+            if let Ok(rule) = read_rules_from_string(&content) {
+                rules.push(rule);
+            }
+        }
+    }
+
+    Ok(rules)
+}
+
+pub fn read_deps() -> Result<Vec<Dependency>> {
+    let content = file::get_file_content(&String::from("bee/deps.yml"))?;
+    let deps_config: DepsConfig = serde_yaml::from_str(&content)?;
+    Ok(deps_config.dependencies)
+}
+
+pub fn read_deps_config() -> Result<Vec<Dependency>> {
+    read_deps()
 }

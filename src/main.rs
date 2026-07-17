@@ -13,6 +13,7 @@ mod hash;
 mod system;
 mod graph;
 mod status;
+mod install;
 
 use clap::Parser;
 use cli::Cli;
@@ -205,13 +206,13 @@ fn main() {
                     list::list_rules().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
-                cli::RuleCommand::Create { name } => {
+                cli::RuleCommand::Create { name, task } => {
                     if !file::check_bee_directory() {
                         eprintln!("Error: run bee init first");
                         return;
                     }
 
-                    add::create_rule(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    add::create_rule(&name, &task).unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
                 cli::RuleCommand::Delete { name } => {
@@ -222,6 +223,32 @@ fn main() {
 
                     delete::delete_rule(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
                 }
+            }
+        }
+
+        cli::Commands::Install(install_args) => {
+            if !file::check_bee_directory() {
+                eprintln!("Error: run bee init first");
+                return;
+            }
+
+            match install_args.command {
+                cli::InstallCommand::Run => {
+                    install::install_all().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+
+                cli::InstallCommand::List => {
+                    install::list_deps().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+
+                cli::InstallCommand::Add { name, dep_type, source, version, command } => {
+                    install::add_dep(&name, &dep_type, &source, version.as_deref(), command.as_deref())
+                        .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+
+                cli::InstallCommand::Remove { name } => {
+                    install::remove_dep(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
             }
         }
     }
