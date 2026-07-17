@@ -70,6 +70,19 @@ pub enum PipelineCommand {
 
     Create {
         name: String,
+
+        #[arg(short, long = "task")]
+        tasks: Vec<String>,
+    },
+
+    Modify {
+        name: String,
+
+        #[arg(long = "add-task")]
+        add_tasks: Vec<String>,
+
+        #[arg(long = "rm-task")]
+        rm_tasks: Vec<String>,
     },
 
     Delete {
@@ -93,6 +106,25 @@ pub enum TaskCommand {
 
     Create {
         name: String,
+
+        #[arg(short, long = "dep")]
+        depends_on: Vec<String>,
+
+        #[arg(short, long)]
+        run: Option<String>,
+    },
+
+    Modify {
+        name: String,
+
+        #[arg(long = "add-dep")]
+        add_deps: Vec<String>,
+
+        #[arg(long = "rm-dep")]
+        rm_deps: Vec<String>,
+
+        #[arg(short, long)]
+        run: Option<String>,
     },
 
     Delete {
@@ -118,6 +150,19 @@ pub enum RuleCommand {
         task: String,
     },
 
+    Modify {
+        name: String,
+
+        #[arg(short, long)]
+        task: Option<String>,
+
+        #[arg(long = "trigger-type")]
+        trigger_type: Option<String>,
+
+        #[arg(long = "trigger-param")]
+        trigger_params: Vec<String>,
+    },
+
     Delete {
         name: String,
     },
@@ -139,6 +184,17 @@ pub enum InstallCommand {
         dep_type: String,
         #[arg(short, long)]
         source: String,
+        #[arg(short, long)]
+        version: Option<String>,
+        #[arg(short, long)]
+        command: Option<String>,
+    },
+    Modify {
+        name: String,
+        #[arg(short, long)]
+        dep_type: Option<String>,
+        #[arg(short, long)]
+        source: Option<String>,
         #[arg(short, long)]
         version: Option<String>,
         #[arg(short, long)]

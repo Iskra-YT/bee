@@ -4,12 +4,14 @@ use crate::yaml;
 use crate::file;
 use crate::hash;
 
+pub fn create_task(name: &String, depends_on: Vec<String>, run: Option<String>) -> Result<()> {
+    let run_cmd = run.unwrap_or_else(|| format!("echo \"Running {}...\"", name));
+    let deps = if depends_on.is_empty() { None } else { Some(depends_on) };
 
-pub fn create_task(name: &String) -> Result<()> {
     let task_config = parser::Task {
         name: name.clone(),
-        run: format!("echo \"Running {}...\"", name),
-        depends_on: None,
+        run: run_cmd,
+        depends_on: deps,
     };
 
     yaml::writer::save_yaml(&format!("bee/tasks/{}.yml", name), &task_config)?;
@@ -18,13 +20,14 @@ pub fn create_task(name: &String) -> Result<()> {
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
     file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
+    println!("Task '{}' created", name);
     Ok(())
 }
 
-pub fn create_pipeline(name: &String) -> Result<()> {
+pub fn create_pipeline(name: &String, tasks: Vec<String>) -> Result<()> {
     let pipeline_config = parser::Pipeline {
         name: name.clone(),
-        tasks: vec![],
+        tasks,
     };
 
     yaml::writer::save_yaml(&format!("bee/pipelines/{}.yml", name), &pipeline_config)?;
@@ -33,6 +36,7 @@ pub fn create_pipeline(name: &String) -> Result<()> {
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
     file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
+    println!("Pipeline '{}' created", name);
     Ok(())
 }
 
@@ -49,5 +53,6 @@ pub fn create_rule(name: &String, task: &String) -> Result<()> {
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
     file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
 
+    println!("Rule '{}' created", name);
     Ok(())
 }

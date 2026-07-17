@@ -8,6 +8,7 @@ mod file;
 mod list;
 mod add;
 mod delete;
+mod modify;
 mod time;
 mod hash;
 mod system;
@@ -135,13 +136,23 @@ fn main() {
                    list::list_pipelines().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
-                cli::PipelineCommand::Create { name } => {
+                cli::PipelineCommand::Create { name, tasks } => {
                     if !file::check_bee_directory() {
                         eprintln!("Error: run bee init first");
                         return;
                     }
 
-                    add::create_pipeline(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    add::create_pipeline(&name, tasks).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+
+                cli::PipelineCommand::Modify { name, add_tasks, rm_tasks } => {
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
+                    modify::modify_pipeline(&name, &add_tasks, &rm_tasks)
+                        .unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
                 cli::PipelineCommand::Delete { name } => {
@@ -175,13 +186,24 @@ fn main() {
                     list::list_tasks().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
-                cli::TaskCommand::Create { name } => {
+                cli::TaskCommand::Create { name, depends_on, run } => {
                     if !file::check_bee_directory() {
                         eprintln!("Error: run bee init first");
                         return;
                     }
 
-                    add::create_task(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    add::create_task(&name, depends_on, run)
+                        .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+
+                cli::TaskCommand::Modify { name, add_deps, rm_deps, run } => {
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
+                    modify::modify_task(&name, &add_deps, &rm_deps, run.as_deref())
+                        .unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
                 cli::TaskCommand::Delete { name } => {
@@ -215,6 +237,16 @@ fn main() {
                     add::create_rule(&name, &task).unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
+                cli::RuleCommand::Modify { name, task, trigger_type, trigger_params } => {
+                    if !file::check_bee_directory() {
+                        eprintln!("Error: run bee init first");
+                        return;
+                    }
+
+                    modify::modify_rule(&name, task.as_deref(), trigger_type.as_deref(), &trigger_params)
+                        .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+
                 cli::RuleCommand::Delete { name } => {
                     if !file::check_bee_directory() {
                         eprintln!("Error: run bee init first");
@@ -243,6 +275,11 @@ fn main() {
 
                 cli::InstallCommand::Add { name, dep_type, source, version, command } => {
                     install::add_dep(&name, &dep_type, &source, version.as_deref(), command.as_deref())
+                        .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+
+                cli::InstallCommand::Modify { name, dep_type, source, version, command } => {
+                    modify::modify_dep(&name, dep_type.as_deref(), source.as_deref(), version.as_deref(), command.as_deref())
                         .unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 

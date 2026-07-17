@@ -6,6 +6,7 @@ use serde::{Serialize, Deserialize};
 pub struct Task {
     pub name: String,
     pub run: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub depends_on: Option<Vec<String>>
 }
 
