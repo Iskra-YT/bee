@@ -1,7 +1,11 @@
 use clap::{Parser, Subcommand, Args};
 
 #[derive(Parser)]
-#[command(name = "bee")]
+#[command(
+    name = "bee",
+    about = "Task pipeline orchestration tool",
+    long_about = "Bee manages task pipelines with automatic dependency resolution.\n\nDefine tasks in bee/tasks/*.yml, connect them via depends_on,\norganize into pipelines in bee/pipelines/*.yml, and control when\nthey run with trigger rules in bee/rules/*.yml.\n\nRun 'bee init' to get started in a new project."
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -9,88 +13,52 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    Clean,
-    Run,
+    /// Initialize bee in the current directory
+    #[command(about = "Initialize bee project structure")]
     Init,
+
+    /// Run all pipelines
+    #[command(about = "Run all pipelines in dependency order")]
+    Run,
+
+    /// List all tasks, pipelines, and rules
+    #[command(about = "List all registered tasks, pipelines, and rules")]
     List,
+
+    /// Show project status and cached task counts
+    #[command(about = "Show project status")]
     Status,
+
+    /// Clear the runtime cache (trigger states, run history)
+    #[command(about = "Clear cache and reset trigger states")]
+    Clean,
+
+    /// Visualize dependency graphs
+    #[command(about = "Render dependency graphs for pipelines")]
     Graph(GraphArgs),
-    Backup(BackupArgs),
+
+    /// Manage pipeline definitions
+    #[command(about = "Create, modify, run, and delete pipelines")]
     Pipeline(PipelineArgs),
+
+    /// Manage task definitions
+    #[command(about = "Create, modify, run, and delete tasks")]
     Task(TaskArgs),
+
+    /// Manage trigger rules
+    #[command(about = "Create, modify, and delete trigger rules")]
     Rule(RuleArgs),
+
+    /// Manage external dependencies
+    #[command(about = "Install, add, modify, and remove external dependencies")]
     Install(InstallArgs),
+
+    /// Manage configuration backups
+    #[command(about = "Create, list, and restore configuration backups")]
+    Backup(BackupArgs),
 }
 
-#[derive(Args)]
-pub struct BackupArgs {
-    #[command(subcommand)]
-    pub command: BackupCommand,
-}
-
-#[derive(Subcommand)]
-pub enum BackupCommand {
-    Create,
-    List,
-    Restore {
-        hash: String,
-    },
-}
-
-#[derive(Args)]
-pub struct GraphArgs {
-    #[command(subcommand)]
-    pub command: GraphCommand,
-}
-
-#[derive(Subcommand)]
-pub enum GraphCommand {
-    All {
-        #[arg(default_value = "tree")]
-        format: String,
-    },
-    Pipeline {
-        name: String,
-        #[arg(default_value = "tree")]
-        format: String,
-    },
-}
-
-#[derive(Args)]
-pub struct PipelineArgs {
-    #[command(subcommand)]
-    pub command: PipelineCommand,
-}
-
-#[derive(Subcommand)]
-pub enum PipelineCommand {
-    Run {
-        name: String,
-    },
-
-    Create {
-        name: String,
-
-        #[arg(short, long = "task")]
-        tasks: Vec<String>,
-    },
-
-    Modify {
-        name: String,
-
-        #[arg(long = "add-task")]
-        add_tasks: Vec<String>,
-
-        #[arg(long = "rm-task")]
-        rm_tasks: Vec<String>,
-    },
-
-    Delete {
-        name: String,
-    },
-
-    List,
-}
+// ─── Task ───────────────────────────────────────────────────────────
 
 #[derive(Args)]
 pub struct TaskArgs {
@@ -100,39 +68,115 @@ pub struct TaskArgs {
 
 #[derive(Subcommand)]
 pub enum TaskCommand {
+    /// Run a single task
+    #[command(about = "Execute a task directly (bypasses pipeline ordering)")]
     Run {
+        /// Task name to run
         name: String,
     },
 
+    /// Create a new task
+    #[command(about = "Create a new task definition")]
     Create {
+        /// Task name (used as filename: bee/tasks/<name>.yml)
         name: String,
 
-        #[arg(short, long = "dep")]
+        /// Add a dependency (repeatable: -d build -d test)
+        #[arg(short, long = "dep", help = "Task this task depends on (repeatable)")]
         depends_on: Vec<String>,
 
-        #[arg(short, long)]
+        /// Shell command to execute (default: echo "Running <name>...")
+        #[arg(short, long, help = "Shell command to run")]
         run: Option<String>,
     },
 
+    /// Modify an existing task
+    #[command(about = "Modify task dependencies or run command")]
     Modify {
+        /// Task name to modify
         name: String,
 
-        #[arg(long = "add-dep")]
+        /// Add a dependency (repeatable)
+        #[arg(long = "add-dep", help = "Add a dependency (repeatable)")]
         add_deps: Vec<String>,
 
-        #[arg(long = "rm-dep")]
+        /// Remove a dependency (repeatable)
+        #[arg(long = "rm-dep", help = "Remove a dependency (repeatable)")]
         rm_deps: Vec<String>,
 
-        #[arg(short, long)]
+        /// Replace the run command
+        #[arg(short, long, help = "Replace the shell command")]
         run: Option<String>,
     },
 
+    /// Delete a task
+    #[command(about = "Delete a task definition")]
     Delete {
+        /// Task name to delete
         name: String,
     },
 
+    /// List all tasks
+    #[command(about = "List all registered tasks")]
     List,
 }
+
+// ─── Pipeline ───────────────────────────────────────────────────────
+
+#[derive(Args)]
+pub struct PipelineArgs {
+    #[command(subcommand)]
+    pub command: PipelineCommand,
+}
+
+#[derive(Subcommand)]
+pub enum PipelineCommand {
+    /// Run a pipeline
+    #[command(about = "Execute a pipeline (tasks run in DAG order, parallel where possible)")]
+    Run {
+        /// Pipeline name to run
+        name: String,
+    },
+
+    /// Create a new pipeline
+    #[command(about = "Create a new pipeline definition")]
+    Create {
+        /// Pipeline name (used as filename: bee/pipelines/<name>.yml)
+        name: String,
+
+        /// Add a task to the pipeline (repeatable: -t compile -t test)
+        #[arg(short, long = "task", help = "Task to include (repeatable)")]
+        tasks: Vec<String>,
+    },
+
+    /// Modify an existing pipeline
+    #[command(about = "Add or remove tasks from a pipeline")]
+    Modify {
+        /// Pipeline name to modify
+        name: String,
+
+        /// Add a task (repeatable, skips duplicates)
+        #[arg(long = "add-task", help = "Add a task (repeatable, skips duplicates)")]
+        add_tasks: Vec<String>,
+
+        /// Remove a task (repeatable)
+        #[arg(long = "rm-task", help = "Remove a task (repeatable)")]
+        rm_tasks: Vec<String>,
+    },
+
+    /// Delete a pipeline
+    #[command(about = "Delete a pipeline definition")]
+    Delete {
+        /// Pipeline name to delete
+        name: String,
+    },
+
+    /// List all pipelines
+    #[command(about = "List all registered pipelines")]
+    List,
+}
+
+// ─── Rule ───────────────────────────────────────────────────────────
 
 #[derive(Args)]
 pub struct RuleArgs {
@@ -142,31 +186,49 @@ pub struct RuleArgs {
 
 #[derive(Subcommand)]
 pub enum RuleCommand {
+    /// List all rules
+    #[command(about = "List all registered trigger rules")]
     List,
 
+    /// Create a new rule (default: manual trigger)
+    #[command(about = "Create a new trigger rule for a task")]
     Create {
+        /// Rule name (used as filename: bee/rules/<name>.yml)
         name: String,
-        #[arg(short, long)]
+
+        /// Target task name
+        #[arg(short, long, help = "Task this rule applies to")]
         task: String,
     },
 
+    /// Modify an existing rule
+    #[command(about = "Modify rule task or add triggers")]
     Modify {
+        /// Rule name to modify
         name: String,
 
-        #[arg(short, long)]
+        /// Change the target task
+        #[arg(short, long, help = "Change the target task")]
         task: Option<String>,
 
-        #[arg(long = "trigger-type")]
+        /// Add a trigger type (see available types below)
+        #[arg(long = "trigger-type", help = "Trigger type: manual, always, file_change, git_changed, task_completed, task_failed, dependency_changed, env_changed, dependency_missing, checksum_changed, schedule, git_tag")]
         trigger_type: Option<String>,
 
-        #[arg(long = "trigger-param")]
+        /// Trigger parameters as key=value pairs (repeatable)
+        #[arg(long = "trigger-param", help = "Param for the trigger (repeatable): paths=glob1,glob2 | task=name | vars=VAR1,VAR2 | path=/file | cron=expr | pattern=regex")]
         trigger_params: Vec<String>,
     },
 
+    /// Delete a rule
+    #[command(about = "Delete a trigger rule")]
     Delete {
+        /// Rule name to delete
         name: String,
     },
 }
+
+// ─── Install ────────────────────────────────────────────────────────
 
 #[derive(Args)]
 pub struct InstallArgs {
@@ -176,31 +238,120 @@ pub struct InstallArgs {
 
 #[derive(Subcommand)]
 pub enum InstallCommand {
+    /// Install all dependencies
+    #[command(about = "Install all dependencies defined in system/deps.yml")]
     Run,
+
+    /// List all dependencies
+    #[command(about = "List all defined dependencies")]
     List,
+
+    /// Add a dependency
+    #[command(about = "Add a new external dependency")]
     Add {
+        /// Dependency name
         name: String,
-        #[arg(short, long)]
+
+        /// Dependency type: package, url, git, or command
+        #[arg(short, long, help = "Type: package (apt/brew), url (archive download), git (clone repo), command (shell command)")]
         dep_type: String,
-        #[arg(short, long)]
-        source: String,
-        #[arg(short, long)]
-        version: Option<String>,
-        #[arg(short, long)]
-        command: Option<String>,
-    },
-    Modify {
-        name: String,
-        #[arg(short, long)]
-        dep_type: Option<String>,
-        #[arg(short, long)]
+
+        /// Source: package name, URL, or git repo URL (not required for command type)
+        #[arg(short, long, help = "Source: package name, download URL, or git repo URL (optional for type=command)")]
         source: Option<String>,
-        #[arg(short, long)]
+
+        /// Version (optional, for url/git types)
+        #[arg(short, long, help = "Version tag (optional, for url/git)")]
         version: Option<String>,
-        #[arg(short, long)]
+
+        /// Shell command to execute (required for type=command, optional for type=package)
+        #[arg(short, long, help = "Shell command (required for type=command)")]
         command: Option<String>,
     },
-    Remove {
+
+    /// Modify an existing dependency
+    #[command(about = "Modify dependency source, version, or command")]
+    Modify {
+        /// Dependency name to modify
         name: String,
+
+        /// Change the dependency type
+        #[arg(short, long, help = "New type: package, url, or git")]
+        dep_type: Option<String>,
+
+        /// Change the source
+        #[arg(short, long, help = "New source URL or package name")]
+        source: Option<String>,
+
+        /// Change the version
+        #[arg(short, long, help = "New version tag")]
+        version: Option<String>,
+
+        /// Change the install command
+        #[arg(short, long, help = "New install command")]
+        command: Option<String>,
+    },
+
+    /// Remove a dependency
+    #[command(about = "Remove a dependency and its installed files")]
+    Remove {
+        /// Dependency name to remove
+        name: String,
+    },
+}
+
+// ─── Graph ──────────────────────────────────────────────────────────
+
+#[derive(Args)]
+pub struct GraphArgs {
+    #[command(subcommand)]
+    pub command: GraphCommand,
+}
+
+#[derive(Subcommand)]
+pub enum GraphCommand {
+    /// Show dependency graphs for all pipelines
+    #[command(about = "Render dependency graphs for all pipelines")]
+    All {
+        /// Output format: tree (default), dot, or mermaid
+        #[arg(default_value = "tree", help = "Format: tree (text), dot (GraphViz), mermaid")]
+        format: String,
+    },
+
+    /// Show dependency graph for a specific pipeline
+    #[command(about = "Render dependency graph for one pipeline")]
+    Pipeline {
+        /// Pipeline name
+        name: String,
+
+        /// Output format: tree (default), dot, or mermaid
+        #[arg(default_value = "tree", help = "Format: tree (text), dot (GraphViz), mermaid")]
+        format: String,
+    },
+}
+
+// ─── Backup ─────────────────────────────────────────────────────────
+
+#[derive(Args)]
+pub struct BackupArgs {
+    #[command(subcommand)]
+    pub command: BackupCommand,
+}
+
+#[derive(Subcommand)]
+pub enum BackupCommand {
+    /// Create a backup of tasks, pipelines, rules, and config
+    #[command(about = "Snapshot current configuration to bee/system/backup/")]
+    Create,
+
+    /// List all backups
+    #[command(about = "List available backups with dates and hashes")]
+    List,
+
+    /// Restore a backup by hash
+    #[command(about = "Restore tasks, pipelines, rules, and config from a backup")]
+    Restore {
+        /// Backup hash (from 'bee backup list')
+        hash: String,
     },
 }

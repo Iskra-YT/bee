@@ -1,6 +1,5 @@
 use crate::run::tasks;
 use crate::{parser::Task, run::dag};
-use anyhow::Result;
 use std::thread;
 
 pub fn find_parallel_groups(
@@ -46,21 +45,31 @@ pub fn find_parallel_groups(
 pub fn run_parallel_tasks(
     graph: &dag::DiGraph<Task, ()>,
     group: Vec<dag::NodeIndex>,
-) -> Result<()> {
+) -> Vec<String> {
     let mut handles = vec![];
 
     for node in group {
         let task = graph[node].clone();
-        let handle = thread::spawn(move || -> Result<()> {
-            tasks::run_task(task)?;
-            Ok(())
+        let handle = thread::spawn(move || -> Option<String> {
+            tasks::run_task(task).err().map(|e| e.to_string())
         });
-        handles.push(handle);
+        handles.push((graph[node].name.clone(), handle));
     }
 
-    for handle in handles {
-        handle.join().unwrap()?;
+    let mut failed = vec![];
+    for (name, handle) in handles {
+        match handle.join() {
+            Ok(Some(err)) => {
+                eprintln!("  \x1b[31m- {}: FAILED\x1b[0m ({})", name, err);
+                failed.push(name);
+            }
+            Ok(None) => {}
+            Err(_) => {
+                eprintln!("  \x1b[31m- {}: PANICKED\x1b[0m (thread crashed)", name);
+                failed.push(name);
+            }
+        }
     }
 
-    Ok(())
+    failed
 }

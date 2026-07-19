@@ -54,8 +54,8 @@ pub fn run_init() -> Result<()> {
     let deps_config = parser::DepsConfig {
         dependencies: vec![],
     };
-    yaml::writer::save_yaml("bee/deps.yml", &deps_config)?;
-    println!("  Created deps.yml");
+    yaml::writer::save_yaml("bee/system/deps.yml", &deps_config)?;
+    println!("  Created system/deps.yml");
 
     file::write_file_content(&String::from("bee/README.md"), &BEE_README.to_string())?;
     println!("  Created bee/README.md");
@@ -82,6 +82,9 @@ system/backup/
 
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
     file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
+
+    let deps_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/deps.yml"))?);
+    file::write_file_content(&String::from("bee/system/hash/deps"), &deps_hash)?;
 
     println!("Initialization complete. Hash: {}", init_proof.chars().take(8).collect::<String>());
     Ok(())
@@ -148,12 +151,13 @@ bee/
 ├── deps/                # installed dependencies
 ├── system/
 │   ├── config.yml       # master registry of all tasks/pipelines/rules
+│   ├── deps.yml         # external dependency definitions
 │   ├── init             # initialization proof (hash)
 │   ├── hash/
 │   │   ├── init         # SHA-256 of init file
-│   │   └── config       # SHA-256 of config.yml
+│   │   ├── config       # SHA-256 of config.yml
+│   │   └── deps         # SHA-256 of deps.yml
 │   └── backup/          # configuration snapshots
-├── deps.yml             # external dependency definitions
 ├── README.md            # this file
 └── .gitignore           # ignores cache/deps/backup/hash
 ```
@@ -170,16 +174,16 @@ bee/
 | `cache/` | Runtime cache data. Stores trigger states and task execution history. |
 | `deps/` | Installed dependencies. Tools and libraries fetched by `bee install`. |
 | `system/` | Internal metadata. Config registry, integrity hashes, and backup storage. |
-| `system/hash/` | Tamper-detection hashes for config and init files. |
+| `system/hash/` | Tamper-detection hashes for config, deps, and init files. |
 | `system/backup/` | Backup snapshots of tasks, pipelines, and rules. |
-| `deps.yml` | Project dependencies — define external tools to install with `bee install`. |
+| `system/deps.yml` | External dependency definitions — install with `bee install`. |
 
 ---
 
 ## Key Files
 
 - `system/config.yml` — Master registry of all tasks, pipelines, and rules. Auto-managed by `bee task/pipeline/rule create/delete`. **Do not edit manually.**
-- `deps.yml` — Dependency definitions (URL, git, or package manager).
+- `system/deps.yml` — Dependency definitions (URL, git, or package manager). Hash-protected like config.yml.
 - `README.md` — This file.
 
 ---
@@ -308,6 +312,25 @@ Runs the full pipeline. The system automatically:
 2. Performs topological sort
 3. Groups tasks into layers (parallel groups)
 4. Runs layers sequentially, tasks within a layer run in parallel (separate threads)
+5. On failure: only tasks that depend on the failed task are skipped — independent branches continue
+6. Reports exit code, stderr, and color-coded status for each task
+
+```
+Pipeline: ci (5 tasks, 2 group(s))
+  [1/2] compile, build (parallel)
+  - compile: running
+  - build: running
+build OK
+  - compile: FAILED (exit code 1)
+  [2/2] lint: SKIPPED (dependency failed)
+  [2/2] test: SKIPPED (dependency failed)
+  [2/2] deploy
+  - deploy: running
+deploy OK
+
+Pipeline 'ci' failed: compile
+Skipped: lint, test
+```
 
 ### Run all pipelines
 
@@ -445,7 +468,7 @@ bee install run
 bee install remove <name>
 ```
 
-### deps.yml format
+### system/deps.yml format
 
 ```yaml
 dependencies:
@@ -706,6 +729,7 @@ Bee stores SHA-256 hashes:
 - `bee/system/init` — initialization proof
 - `bee/system/hash/init` — hash of init file
 - `bee/system/hash/config` — hash of config.yml
+- `bee/system/hash/deps` — hash of deps.yml
 
 The system verifies integrity on every operation. If hashes don't match, bee returns "run bee init first".
 "#;
@@ -718,7 +742,7 @@ Before any operation on the bee system (modifying tasks, pipelines, rules, runni
 
 - Full documentation of all commands
 - Directory structure
-- YAML file formats (tasks, pipelines, rules, deps.yml)
+- YAML file formats (tasks, pipelines, rules, system/deps.yml)
 - Trigger system and run rules
 - Integrity security information (SHA-256 hashes)
 
@@ -729,6 +753,7 @@ Before any operation on the bee system (modifying tasks, pipelines, rules, runni
 3. **Before running a bee command** make sure you are in the parent directory of `bee/` (where `bee/system/init` exists)
 4. **After modifying tasks** consider running `bee clean` to reset trigger states
 5. **Before creating new tasks/pipelines/rules** check existing ones with `bee list`
+7. **Never add new rule/pipeline/task without running command** — this elements won't be visible for bee system
 
 ## File Structure
 
@@ -739,6 +764,7 @@ bee/
 ├── rules/<name>.yml       # Rule: name, task, triggers
 ├── deps.yml               # Dependencies: dependencies[]
 ├── system/config.yml      # Registry (auto-managed)
+├── system/deps.yml        # Dependencies (hash-protected)
 └── README.md              # DOCUMENTATION - always read first!
 ```
 

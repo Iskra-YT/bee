@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde_yaml::Value;
-use crate::{file, yaml};
+use crate::{file, yaml, hash};
 
 pub fn modify_task(
     name: &str,
@@ -202,7 +202,8 @@ pub fn modify_dep(
     version: Option<&str>,
     command: Option<&str>,
 ) -> Result<()> {
-    let content = file::get_file_content(&String::from("bee/deps.yml"))?;
+    let deps_path = "bee/system/deps.yml";
+    let content = file::get_file_content(&String::from(deps_path))?;
     let mut doc: Value = serde_yaml::from_str(&content)?;
 
     let deps = doc.get_mut("dependencies")
@@ -228,7 +229,11 @@ pub fn modify_dep(
         mapping.insert(Value::String("command".into()), Value::String(c.into()));
     }
 
-    yaml::writer::save_yaml("bee/deps.yml", &doc)?;
+    yaml::writer::save_yaml(deps_path, &doc)?;
+
+    let deps_hash = hash::hash_string(&file::get_file_content(&String::from(deps_path))?);
+    file::write_file_content(&String::from("bee/system/hash/deps"), &deps_hash)?;
+
     println!("Dependency '{}' modified", name);
     Ok(())
 }

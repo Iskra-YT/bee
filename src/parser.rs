@@ -96,7 +96,8 @@ pub struct Dependency {
     pub name: String,
     #[serde(rename = "type")]
     pub dep_type: String,
-    pub source: String,
+    #[serde(default)]
+    pub source: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -117,7 +117,7 @@ pub fn read_rules() -> Result<Vec<Rule>> {
 }
 
 pub fn read_deps() -> Result<Vec<Dependency>> {
-    let content = file::get_file_content(&String::from("bee/deps.yml"))?;
+    let content = file::get_file_content(&String::from("bee/system/deps.yml"))?;
     let deps_config: DepsConfig = serde_yaml::from_str(&content)?;
     Ok(deps_config.dependencies)
 }

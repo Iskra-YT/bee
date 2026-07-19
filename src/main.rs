@@ -274,7 +274,7 @@ fn main() {
                 },
 
                 cli::InstallCommand::Add { name, dep_type, source, version, command } => {
-                    install::add_dep(&name, &dep_type, &source, version.as_deref(), command.as_deref())
+                    install::add_dep(&name, &dep_type, source.as_deref(), version.as_deref(), command.as_deref())
                         .unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
