@@ -267,6 +267,10 @@ pub enum InstallCommand {
         /// Shell command to execute (required for type=command, optional for type=package)
         #[arg(short, long, help = "Shell command (required for type=command)")]
         command: Option<String>,
+
+        /// Install script content (optional, for url/git types). Written to deps/<name>/install.sh and executed after download/clone
+        #[arg(long = "install-script", help = "Install script content (written to deps/<name>/install.sh, run after download/clone)")]
+        install_script: Option<String>,
     },
 
     /// Modify an existing dependency
@@ -290,6 +294,10 @@ pub enum InstallCommand {
         /// Change the install command
         #[arg(short, long, help = "New install command")]
         command: Option<String>,
+
+        /// Change the install script content
+        #[arg(long = "install-script", help = "New install script content (written to deps/<name>/install.sh)")]
+        install_script: Option<String>,
     },
 
     /// Remove a dependency

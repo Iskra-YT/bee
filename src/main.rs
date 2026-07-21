@@ -273,13 +273,13 @@ fn main() {
                     install::list_deps().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
-                cli::InstallCommand::Add { name, dep_type, source, version, command } => {
-                    install::add_dep(&name, &dep_type, source.as_deref(), version.as_deref(), command.as_deref())
+                cli::InstallCommand::Add { name, dep_type, source, version, command, install_script } => {
+                    install::add_dep(&name, &dep_type, source.as_deref(), version.as_deref(), command.as_deref(), install_script.as_deref())
                         .unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
-                cli::InstallCommand::Modify { name, dep_type, source, version, command } => {
-                    modify::modify_dep(&name, dep_type.as_deref(), source.as_deref(), version.as_deref(), command.as_deref())
+                cli::InstallCommand::Modify { name, dep_type, source, version, command, install_script } => {
+                    modify::modify_dep(&name, dep_type.as_deref(), source.as_deref(), version.as_deref(), command.as_deref(), install_script.as_deref())
                         .unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
