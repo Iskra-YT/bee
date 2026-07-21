@@ -12,7 +12,7 @@ pub fn run_init() -> Result<()> {
         return Ok(());
     }
     let _ = fs::remove_dir_all("bee");
-    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/deps", "bee/system", "bee/system/hash"].iter() {
+    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/deps", "bee/system", "bee/system/hash", "bee/scripts/install"].iter() {
         fs::create_dir_all(dir)?;
     }
 
@@ -149,6 +149,8 @@ bee/
 ├── rules/               # (empty)
 ├── cache/               # trigger states and task run history
 ├── deps/                # installed dependencies
+├── scripts/
+│   └── install/         # install scripts for url/git dependencies
 ├── system/
 │   ├── config.yml       # master registry of all tasks/pipelines/rules
 │   ├── deps.yml         # external dependency definitions
@@ -157,6 +159,7 @@ bee/
 │   │   ├── init         # SHA-256 of init file
 │   │   ├── config       # SHA-256 of config.yml
 │   │   └── deps         # SHA-256 of deps.yml
+│   ├── scripts/         # install scripts for url/git dependencies
 │   └── backup/          # configuration snapshots
 ├── README.md            # this file
 └── .gitignore           # ignores cache/deps/backup/hash
@@ -175,6 +178,7 @@ bee/
 | `deps/` | Installed dependencies. Tools and libraries fetched by `bee install`. |
 | `system/` | Internal metadata. Config registry, integrity hashes, and backup storage. |
 | `system/hash/` | Tamper-detection hashes for config, deps, and init files. |
+| `scripts/install/` | Install scripts for url/git dependencies (`bee/scripts/install/<name>.sh`). |
 | `system/backup/` | Backup snapshots of tasks, pipelines, and rules. |
 | `system/deps.yml` | External dependency definitions — install with `bee install`. |
 
@@ -437,7 +441,7 @@ bee install list
 ### Add a dependency
 
 ```bash
-bee install add <name> --dep-type <type> --source <source> [--version <ver>] [--command <cmd>]
+bee install add <name> --dep-type <type> --source <source> [--version <ver>] [--command <cmd>] [--install-script <script>]
 ```
 
 Dependency types:
@@ -445,15 +449,23 @@ Dependency types:
 - `url` — download from URL (archive)
 - `git` — clone a git repository
 
+For `url` and `git` types you can provide `--install-script` with a shell script that runs after download/clone. The script is saved to `bee/scripts/install/<name>.sh` and executed with working directory set to `bee/deps/<name>/`.
+
+```bash
+bee install add mytool url https://example.com/tool.tar.gz --install-script 'make && make install'
+bee install add mylib git https://github.com/user/repo --install-script 'cargo build --release'
+```
+
 ### Modify a dependency
 
 ```bash
-bee install modify <name> [--dep-type <type>] [--source <src>] [--version <ver>] [--command <cmd>]
+bee install modify <name> [--dep-type <type>] [--source <src>] [--version <ver>] [--command <cmd>] [--install-script <script>]
 ```
 
 ```bash
 bee install modify jq --source jq-full
 bee install modify shellcheck --version v0.10.0
+bee install modify mytool --install-script 'make clean && make && make install'
 ```
 
 ### Install all dependencies
@@ -480,7 +492,13 @@ dependencies:
     type: url
     source: https://github.com/koalaman/shellcheck/releases/download/v0.9.0/shellcheck-v0.9.0.linux.x86_64.tar.xz
     version: v0.9.0
+  - name: mytool
+    type: git
+    source: https://github.com/user/mytool
+    install_script: true
 ```
+
+When `install_script: true` is set, bee will run `bee/scripts/install/<name>.sh` after download/clone. The script is executed with working directory `bee/deps/<name>/`.
 
 ---
 

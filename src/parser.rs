@@ -102,8 +102,8 @@ pub struct Dependency {
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub install_script: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub install_script: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

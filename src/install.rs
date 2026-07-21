@@ -19,12 +19,12 @@ fn update_deps_hash() -> Result<()> {
 }
 
 fn run_install_script(name: &str) -> Result<()> {
-    let script_path = format!("bee/deps/{}/install.sh", name);
+    let script_path = format!("bee/scripts/install/{}.sh", name);
     if !std::path::Path::new(&script_path).exists() {
         return Ok(());
     }
 
-    println!("  Running install.sh for {}...", name);
+    println!("  Running install script for {}...", name);
     let output = Command::new("sh")
         .arg(&script_path)
         .current_dir(format!("bee/deps/{}", name))
@@ -42,10 +42,10 @@ fn run_install_script(name: &str) -> Result<()> {
 
     if !output.status.success() {
         let code = output.status.code().unwrap_or(-1);
-        return Err(anyhow::anyhow!("install.sh failed with exit code {} for {}", code, name));
+        return Err(anyhow::anyhow!("install script failed with exit code {} for {}", code, name));
     }
 
-    println!("  install.sh completed for {}", name);
+    println!("  Install script completed for {}", name);
     Ok(())
 }
 
@@ -121,9 +121,8 @@ pub fn add_dep(name: &str, dep_type: &str, source: Option<&str>, version: Option
     }
 
     if let Some(script) = install_script {
-        let deps_dir = format!("bee/deps/{}", name);
-        fs::create_dir_all(&deps_dir)?;
-        let script_path = format!("{}/install.sh", deps_dir);
+    let script_path = format!("bee/scripts/install/{}.sh", name);
+        fs::create_dir_all("bee/scripts/install")?;
         file::write_file_content(&String::from(&script_path), &script.to_string())?;
         fs::set_permissions(&script_path, std::os::unix::fs::PermissionsExt::from_mode(0o755))?;
     }
@@ -134,7 +133,7 @@ pub fn add_dep(name: &str, dep_type: &str, source: Option<&str>, version: Option
         source: source.map(|s| s.to_string()),
         version: version.map(|v| v.to_string()),
         command: command.map(|c| c.to_string()),
-        install_script: install_script.map(|s| s.to_string()),
+        install_script: install_script.is_some(),
     };
 
     deps.push(new_dep);
@@ -164,6 +163,11 @@ pub fn remove_dep(name: &str) -> Result<()> {
         println!("Removed installed dependency from {}", deps_dir);
     }
 
+    let script_path = format!("bee/scripts/install/{}.sh", name);
+    if std::path::Path::new(&script_path).exists() {
+        fs::remove_file(&script_path)?;
+    }
+
     println!("Removed dependency '{}'", name);
     Ok(())
 }
@@ -188,7 +192,7 @@ pub fn list_deps() -> Result<()> {
         if let Some(ref c) = dep.command {
             line.push_str(&format!(", command: {}", c));
         }
-        if dep.install_script.is_some() {
+        if dep.install_script {
             line.push_str(", install_script: yes");
         }
         line.push(')');

@@ -230,9 +230,9 @@ pub fn modify_dep(
         mapping.insert(Value::String("command".into()), Value::String(c.into()));
     }
     if let Some(s) = install_script {
-        mapping.insert(Value::String("install_script".into()), Value::String(s.into()));
-        let script_path = format!("bee/deps/{}/install.sh", name);
-        std::fs::create_dir_all(format!("bee/deps/{}", name))?;
+        mapping.insert(Value::String("install_script".into()), Value::Bool(true));
+        let script_path = format!("bee/scripts/install/{}.sh", name);
+        std::fs::create_dir_all("bee/scripts/install")?;
         file::write_file_content(&String::from(&script_path), &s.to_string())?;
         std::fs::set_permissions(&script_path, std::os::unix::fs::PermissionsExt::from_mode(0o755))?;
     }
