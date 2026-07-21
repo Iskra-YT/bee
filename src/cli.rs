@@ -242,6 +242,10 @@ pub enum InstallCommand {
     #[command(about = "Install all dependencies defined in system/deps.yml")]
     Run,
 
+    /// Update all installed dependencies
+    #[command(about = "Update all installed dependencies (fetches latest changes)")]
+    Update,
+
     /// List all dependencies
     #[command(about = "List all defined dependencies")]
     List,

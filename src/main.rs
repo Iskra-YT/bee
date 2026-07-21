@@ -269,6 +269,10 @@ fn main() {
                     install::install_all().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
+                cli::InstallCommand::Update => {
+                    install::update_all().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+
                 cli::InstallCommand::List => {
                     install::list_deps().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },

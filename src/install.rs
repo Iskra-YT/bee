@@ -19,29 +19,19 @@ fn update_deps_hash() -> Result<()> {
 }
 
 fn run_install_script(name: &str) -> Result<()> {
-    let script_path = format!("bee/scripts/install/{}.sh", name);
-    if !std::path::Path::new(&script_path).exists() {
-        return Ok(());
-    }
+    let script_path = std::fs::canonicalize(format!("bee/scripts/install/{}.sh", name))
+        .map_err(|_| anyhow::anyhow!("Install script not found for {}", name))?;
 
     println!("  Running install script for {}...", name);
-    let output = Command::new("sh")
+    let status = Command::new("sh")
         .arg(&script_path)
         .current_dir(format!("bee/deps/{}", name))
-        .output()?;
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status()?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    if !stdout.is_empty() {
-        print!("{}", stdout);
-    }
-    if !stderr.is_empty() {
-        eprint!("{}", stderr);
-    }
-
-    if !output.status.success() {
-        let code = output.status.code().unwrap_or(-1);
+    if !status.success() {
+        let code = status.code().unwrap_or(-1);
         return Err(anyhow::anyhow!("install script failed with exit code {} for {}", code, name));
     }
 
@@ -50,6 +40,14 @@ fn run_install_script(name: &str) -> Result<()> {
 }
 
 pub fn install_all() -> Result<()> {
+    install_deps(false)
+}
+
+pub fn update_all() -> Result<()> {
+    install_deps(true)
+}
+
+fn install_deps(update: bool) -> Result<()> {
     let deps = read_deps()?;
 
     if deps.is_empty() {
@@ -57,31 +55,37 @@ pub fn install_all() -> Result<()> {
         return Ok(());
     }
 
-    println!("Installing {} dependencies...", deps.len());
+    let action = if update { "Updating" } else { "Installing" };
+    println!("{} {} dependencies...", action, deps.len());
 
     for dep in &deps {
-        install_one(dep)?;
+        install_one(dep, update)?;
     }
 
-    println!("All dependencies installed.");
+    println!("All dependencies {}.", if update { "updated" } else { "installed" });
     Ok(())
 }
 
-pub fn install_one(dep: &Dependency) -> Result<()> {
-    println!("Installing {} (type: {})...", dep.name, dep.dep_type);
+pub fn install_one(dep: &Dependency, update: bool) -> Result<()> {
+    let action = if update { "Updating" } else { "Installing" };
+    println!("{} {} (type: {})...", action, dep.name, dep.dep_type);
 
     match dep.dep_type.as_str() {
         "url" => {
             let source = dep.source.as_deref()
                 .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'url' requires a source", dep.name))?;
-            url::install(&dep.name, source, dep.version.as_deref())?;
-            run_install_script(&dep.name)?;
+            url::install(&dep.name, source, dep.version.as_deref(), update)?;
+            if update {
+                run_install_script(&dep.name)?;
+            }
         }
         "git" => {
             let source = dep.source.as_deref()
                 .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'git' requires a source", dep.name))?;
-            git::install(&dep.name, source, dep.version.as_deref())?;
-            run_install_script(&dep.name)?;
+            git::install(&dep.name, source, dep.version.as_deref(), update)?;
+            if update {
+                run_install_script(&dep.name)?;
+            }
         }
         "package" => {
             let source = dep.source.as_deref()
