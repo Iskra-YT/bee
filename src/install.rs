@@ -74,16 +74,16 @@ pub fn install_one(dep: &Dependency, update: bool) -> Result<()> {
         "url" => {
             let source = dep.source.as_deref()
                 .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'url' requires a source", dep.name))?;
-            url::install(&dep.name, source, dep.version.as_deref(), update)?;
-            if update {
+            let installed = url::install(&dep.name, source, dep.version.as_deref(), update)?;
+            if installed {
                 run_install_script(&dep.name)?;
             }
         }
         "git" => {
             let source = dep.source.as_deref()
                 .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'git' requires a source", dep.name))?;
-            git::install(&dep.name, source, dep.version.as_deref(), update)?;
-            if update {
+            let installed = git::install(&dep.name, source, dep.version.as_deref(), update)?;
+            if installed {
                 run_install_script(&dep.name)?;
             }
         }

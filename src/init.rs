@@ -99,6 +99,7 @@ const BEE_README: &str = r#"# Bee - Task Pipeline Orchestration
 ## Table of Contents
 
 - [Building](#building)
+- [Updating](#updating)
 - [Project Initialization](#project-initialization)
 - [Directory Structure](#directory-structure)
 - [Managing Tasks](#managing-tasks)
@@ -126,6 +127,24 @@ cargo test           # run tests
 ```
 
 The binary is at `target/debug/bee` or `target/release/bee`.
+
+---
+
+## Updating
+
+Update bee to the latest version from GitHub:
+
+```bash
+sudo bee update
+```
+
+This will:
+1. Clone the latest bee source from GitHub to a temporary directory
+2. Build bee in release mode
+3. Replace the currently running binary
+4. Clean up temporary files
+
+> **Note:** Requires `sudo` because the binary is typically installed to `/usr/local/bin/`.
 
 ---
 
@@ -790,6 +809,7 @@ bee/
 
 ```bash
 bee init                                         # Initialize project
+bee update                                        # Update bee to latest version
 bee list                                         # List everything
 bee status                                       # Project status
 bee run                                          # Run all pipelines

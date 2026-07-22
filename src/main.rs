@@ -15,6 +15,7 @@ mod system;
 mod graph;
 mod status;
 mod install;
+mod update;
 
 use clap::Parser;
 use cli::Cli;
@@ -30,6 +31,10 @@ fn main() {
             }
 
             clean::clean_cache().unwrap_or_else(|e| eprintln!("Error: {}", e));
+        },
+
+        cli::Commands::Update => {
+            update::run_update().unwrap_or_else(|e| eprintln!("Error: {}", e));
         },
 
         cli::Commands::Run => {

@@ -61,19 +61,19 @@ fn print_progress_bar(label: &str, done: u64, total: u64, width: usize) {
     let _ = std::io::stderr().flush();
 }
 
-pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) -> Result<()> {
+pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) -> Result<bool> {
     let deps_dir = format!("bee/deps/{}", name);
 
     if std::path::Path::new(&deps_dir).exists() {
         if !update {
             println!("  {} already installed, skipping.", name);
-            return Ok(());
+            return Ok(false);
         }
 
         let needs_update = has_remote_updates(&deps_dir)?;
         if !needs_update {
             println!("  {} is already up to date.", name);
-            return Ok(());
+            return Ok(false);
         }
 
         println!("  {} has updates available, pulling...", name);
@@ -103,46 +103,49 @@ pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) ->
         if !status.success() {
             return Err(anyhow::anyhow!("Failed to pull {}", name));
         }
-    } else {
-        fs::create_dir_all("bee/deps")?;
 
-        let mut args = vec!["clone", "--depth", "1", source, &deps_dir];
+        println!("  Updated {} at {}", name, deps_dir);
+        return Ok(true);
+    }
 
-        let version_str;
-        if let Some(v) = version {
-            version_str = format!("refs/tags/{}", v);
-            args = vec!["clone", "--depth", "1", "--branch", &version_str, source, &deps_dir];
-        }
+    fs::create_dir_all("bee/deps")?;
 
-        println!("  Cloning {} from {}...", name, source);
-        let mut child = Command::new("git")
-            .args(&args)
-            .stderr(Stdio::piped())
-            .spawn()?;
+    let mut args = vec!["clone", "--depth", "1", source, &deps_dir];
 
-        let mut total: u64 = 0;
-        let mut done: u64 = 0;
+    let version_str;
+    if let Some(v) = version {
+        version_str = format!("refs/tags/{}", v);
+        args = vec!["clone", "--depth", "1", "--branch", &version_str, source, &deps_dir];
+    }
 
-        if let Some(ref mut stderr) = child.stderr {
-            let reader = BufReader::new(stderr);
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    parse_git_progress(&line, &mut total, &mut done);
-                    if total > 0 {
-                        print_progress_bar("git clone", done, total, 40);
-                    }
+    println!("  Cloning {} from {}...", name, source);
+    let mut child = Command::new("git")
+        .args(&args)
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    let mut total: u64 = 0;
+    let mut done: u64 = 0;
+
+    if let Some(ref mut stderr) = child.stderr {
+        let reader = BufReader::new(stderr);
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                parse_git_progress(&line, &mut total, &mut done);
+                if total > 0 {
+                    print_progress_bar("git clone", done, total, 40);
                 }
             }
         }
-        let status = child.wait()?;
-        if total > 0 {
-            eprintln!();
-        }
-        if !status.success() {
-            return Err(anyhow::anyhow!("Failed to clone {}", name));
-        }
+    }
+    let status = child.wait()?;
+    if total > 0 {
+        eprintln!();
+    }
+    if !status.success() {
+        return Err(anyhow::anyhow!("Failed to clone {}", name));
     }
 
     println!("  Installed {} to {}", name, deps_dir);
-    Ok(())
+    Ok(true)
 }

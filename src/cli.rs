@@ -33,6 +33,10 @@ pub enum Commands {
     #[command(about = "Clear cache and reset trigger states")]
     Clean,
 
+    /// Update bee to the latest version from GitHub
+    #[command(about = "Update bee to the latest version")]
+    Update,
+
     /// Visualize dependency graphs
     #[command(about = "Render dependency graphs for pipelines")]
     Graph(GraphArgs),
