@@ -202,6 +202,7 @@ pub fn modify_dep(
     version: Option<&str>,
     command: Option<&str>,
     install_script: Option<&str>,
+    path: Option<&str>,
 ) -> Result<()> {
     let deps_path = "bee/system/deps.yml";
     let content = file::get_file_content(&String::from(deps_path))?;
@@ -235,6 +236,9 @@ pub fn modify_dep(
         std::fs::create_dir_all("bee/scripts/install")?;
         file::write_file_content(&String::from(&script_path), &s.to_string())?;
         std::fs::set_permissions(&script_path, std::os::unix::fs::PermissionsExt::from_mode(0o755))?;
+    }
+    if let Some(p) = path {
+        mapping.insert(Value::String("path".into()), Value::String(p.into()));
     }
 
     yaml::writer::save_yaml(deps_path, &doc)?;

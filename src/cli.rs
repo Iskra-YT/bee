@@ -260,25 +260,29 @@ pub enum InstallCommand {
         /// Dependency name
         name: String,
 
-        /// Dependency type: package, url, git, or command
-        #[arg(short, long, help = "Type: package (apt/brew), url (archive download), git (clone repo), command (shell command)")]
+        /// Dependency type: package, url, git, command, or manager
+        #[arg(short, long, help = "Type: package (apt/brew), url (archive download), git (clone repo), command (shell command), manager (package manager in path)")]
         dep_type: String,
 
-        /// Source: package name, URL, or git repo URL (not required for command type)
-        #[arg(short, long, help = "Source: package name, download URL, or git repo URL (optional for type=command)")]
+        /// Source: package name, URL, or git repo URL (not required for command/manager types)
+        #[arg(short, long, help = "Source: package name, download URL, or git repo URL (optional for type=command/manager)")]
         source: Option<String>,
 
         /// Version (optional, for url/git types)
         #[arg(short, long, help = "Version tag (optional, for url/git)")]
         version: Option<String>,
 
-        /// Shell command to execute (required for type=command, optional for type=package)
-        #[arg(short, long, help = "Shell command (required for type=command)")]
+        /// Shell command to execute (required for type=command, optional for type=package/manager)
+        #[arg(short, long, help = "Shell command (required for type=command, optional for type=manager)")]
         command: Option<String>,
 
         /// Install script content (optional, for url/git types). Written to deps/<name>/install.sh and executed after download/clone
         #[arg(long = "install-script", help = "Install script content (written to deps/<name>/install.sh, run after download/clone)")]
         install_script: Option<String>,
+
+        /// Working directory for manager type (required for type=manager)
+        #[arg(short, long, help = "Working directory path (required for type=manager, e.g. src/frontend)")]
+        path: Option<String>,
     },
 
     /// Modify an existing dependency
@@ -288,7 +292,7 @@ pub enum InstallCommand {
         name: String,
 
         /// Change the dependency type
-        #[arg(short, long, help = "New type: package, url, or git")]
+        #[arg(short, long, help = "New type: package, url, git, command, or manager")]
         dep_type: Option<String>,
 
         /// Change the source
@@ -306,6 +310,10 @@ pub enum InstallCommand {
         /// Change the install script content
         #[arg(long = "install-script", help = "New install script content (written to deps/<name>/install.sh)")]
         install_script: Option<String>,
+
+        /// Change the working directory path (for manager type)
+        #[arg(short, long, help = "New working directory path (for type=manager)")]
+        path: Option<String>,
     },
 
     /// Remove a dependency

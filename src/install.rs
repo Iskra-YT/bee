@@ -2,6 +2,7 @@ pub mod url;
 pub mod git;
 pub mod package;
 pub mod command;
+pub mod pipesystem;
 
 use std::fs;
 use std::process::Command;
@@ -97,13 +98,18 @@ pub fn install_one(dep: &Dependency, update: bool) -> Result<()> {
                 .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'command' requires a command", dep.name))?;
             command::install(&dep.name, cmd)?;
         }
+        "manager" => {
+            let path = dep.path.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'manager' requires a path", dep.name))?;
+            pipesystem::install(&dep.name, path, dep.command.as_deref())?;
+        }
         _ => return Err(anyhow::anyhow!("Unknown dependency type: {}", dep.dep_type)),
     }
 
     Ok(())
 }
 
-pub fn add_dep(name: &str, dep_type: &str, source: Option<&str>, version: Option<&str>, command: Option<&str>, install_script: Option<&str>) -> Result<()> {
+pub fn add_dep(name: &str, dep_type: &str, source: Option<&str>, version: Option<&str>, command: Option<&str>, install_script: Option<&str>, path: Option<&str>) -> Result<()> {
     let mut deps = read_deps()?;
 
     if deps.iter().any(|d| d.name == name) {
@@ -118,7 +124,12 @@ pub fn add_dep(name: &str, dep_type: &str, source: Option<&str>, version: Option
         }
         "command" => {
             if command.is_none() {
-                return Err(anyhow::anyhow!("Dependency type 'command' requires a command"));
+                return Err(anyhow::anyhow!("Dependency type '{}' requires a command", dep_type));
+            }
+        }
+        "manager" => {
+            if path.is_none() {
+                return Err(anyhow::anyhow!("Dependency type '{}' requires a path", dep_type));
             }
         }
         _ => return Err(anyhow::anyhow!("Unknown dependency type: {}", dep_type)),
@@ -138,6 +149,7 @@ pub fn add_dep(name: &str, dep_type: &str, source: Option<&str>, version: Option
         version: version.map(|v| v.to_string()),
         command: command.map(|c| c.to_string()),
         install_script: install_script.is_some(),
+        path: path.map(|p| p.to_string()),
     };
 
     deps.push(new_dep);
@@ -195,6 +207,9 @@ pub fn list_deps() -> Result<()> {
         }
         if let Some(ref c) = dep.command {
             line.push_str(&format!(", command: {}", c));
+        }
+        if let Some(ref p) = dep.path {
+            line.push_str(&format!(", path: {}", p));
         }
         if dep.install_script {
             line.push_str(", install_script: yes");

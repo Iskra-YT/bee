@@ -460,31 +460,37 @@ bee install list
 ### Add a dependency
 
 ```bash
-bee install add <name> --dep-type <type> --source <source> [--version <ver>] [--command <cmd>] [--install-script <script>]
+bee install add <name> --dep-type <type> --source <source> [--version <ver>] [--command <cmd>] [--install-script <script>] [--path <path>]
 ```
 
 Dependency types:
 - `package` — system package (requires `--command`, e.g. `sudo apt-get install -y`)
 - `url` — download from URL (archive)
 - `git` — clone a git repository
+- `command` — run an arbitrary shell command (requires `--command`)
+- `manager` — run a package manager in a specific directory (requires `--path`, optional `--command`, default: `npm install`)
 
 For `url` and `git` types you can provide `--install-script` with a shell script that runs after download/clone. The script is saved to `bee/scripts/install/<name>.sh` and executed with working directory set to `bee/deps/<name>/`.
 
 ```bash
 bee install add mytool url https://example.com/tool.tar.gz --install-script 'make && make install'
 bee install add mylib git https://github.com/user/repo --install-script 'cargo build --release'
+bee install add npm-packages --dep-type manager --path src/frontend --command "npm install"
+bee install add pip-deps --dep-type manager --path backend --command "pip install -r requirements.txt"
 ```
 
 ### Modify a dependency
 
 ```bash
-bee install modify <name> [--dep-type <type>] [--source <src>] [--version <ver>] [--command <cmd>] [--install-script <script>]
+bee install modify <name> [--dep-type <type>] [--source <src>] [--version <ver>] [--command <cmd>] [--install-script <script>] [--path <path>]
 ```
 
 ```bash
 bee install modify jq --source jq-full
 bee install modify shellcheck --version v0.10.0
 bee install modify mytool --install-script 'make clean && make && make install'
+bee install modify npm-packages --path frontend
+bee install modify pip-deps --command "pip install -r requirements.txt"
 ```
 
 ### Install all dependencies
@@ -515,9 +521,19 @@ dependencies:
     type: git
     source: https://github.com/user/mytool
     install_script: true
+  - name: npm-packages
+    type: manager
+    path: src/frontend
+    command: npm install
+  - name: pip-deps
+    type: manager
+    path: backend
+    command: pip install -r requirements.txt
 ```
 
 When `install_script: true` is set, bee will run `bee/scripts/install/<name>.sh` after download/clone. The script is executed with working directory `bee/deps/<name>/`.
+
+The `manager` type runs a package manager command inside the specified `path` directory. Use it for project-local dependencies (npm, pip, cargo, etc.).
 
 ---
 
