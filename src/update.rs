@@ -45,6 +45,7 @@ pub fn run_update() -> Result<()> {
     }
 
     println!("  Installing to {}...", current_exe.display());
+    fs::remove_file(&current_exe)?;
     fs::copy(&new_binary, &current_exe)?;
     fs::set_permissions(&current_exe, fs::Permissions::from_mode(0o755))?;
 
