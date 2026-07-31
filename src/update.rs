@@ -45,7 +45,7 @@ pub fn run_update() -> Result<()> {
     }
 
     let strip_status = Command::new("strip")
-        .args([new_binary])
+        .args([new_binary.clone()])
         .current_dir(&tmp_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())

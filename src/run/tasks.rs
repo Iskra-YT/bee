@@ -1,6 +1,7 @@
 use std::process::Command;
 use crate::parser::{Rule, RuleTrigger};
 use crate::parser::reader::config as reader;
+use crate::run::cache;
 
 pub fn should_run(task_name: &str) -> bool {
     let rules = reader::read_rules().unwrap_or_else(|_| vec![]);
@@ -43,7 +44,7 @@ fn evaluate_trigger(trigger: &RuleTrigger, task_name: &str) -> bool {
         RuleTrigger::Always => true,
 
         RuleTrigger::FileChange { paths } => {
-            check_file_changes(paths)
+            check_file_changes(paths, task_name)
         }
 
         RuleTrigger::GitChanged { paths } => {
@@ -84,18 +85,19 @@ fn evaluate_trigger(trigger: &RuleTrigger, task_name: &str) -> bool {
     }
 }
 
-fn check_file_changes(paths: &[String]) -> bool {
-    let last_hash = get_trigger_state("file_change");
+fn check_file_changes(paths: &[String], task_name: &str) -> bool {
+    let state_key = format!("file_change_{}_{}", task_name, crate::hash::hash_string(&paths.join("|")));
+    let last_hash = get_trigger_state(&state_key);
     let current_hash = compute_files_hash(paths);
 
     if last_hash.is_none() {
-        save_trigger_state("file_change", &current_hash);
+        save_trigger_state(&state_key, &current_hash);
         return true;
     }
 
     let changed = last_hash.unwrap() != current_hash;
     if changed {
-        save_trigger_state("file_change", &current_hash);
+        save_trigger_state(&state_key, &current_hash);
     }
     changed
 }
@@ -132,7 +134,7 @@ fn check_task_failed(task: &str) -> bool {
 }
 
 fn check_env_changed(vars: &[String], task_name: &str) -> bool {
-    let state_key = format!("env_{}", task_name);
+    let state_key = format!("env_{}_{}", task_name, crate::hash::hash_string(&vars.join("|")));
     let last_state = get_trigger_state(&state_key);
 
     let current_state: Vec<String> = vars.iter()
@@ -162,17 +164,10 @@ fn check_git_tag() -> bool {
 }
 
 fn check_checksum_changed(paths: &[String], task_name: &str) -> bool {
-    let state_key = format!("checksum_{}", task_name);
+    let state_key = format!("checksum_{}_{}", task_name, crate::hash::hash_string(&paths.join("|")));
     let last_hash = get_trigger_state(&state_key);
 
-    let mut combined = String::new();
-    for path in paths {
-        if let Ok(h) = crate::hash::hash_file(path) {
-            combined.push_str(&h);
-        }
-    }
-
-    let current_hash = crate::hash::hash_string(&combined);
+    let current_hash = compute_files_hash(paths);
 
     if let Some(last) = last_hash {
         let changed = last != current_hash;
@@ -210,13 +205,11 @@ fn glob_match(pattern: &str, path: &str) -> bool {
 }
 
 fn get_trigger_state(key: &str) -> Option<String> {
-    let path = format!("bee/cache/triggers/{}", key);
-    std::fs::read_to_string(path).ok()
+    cache::get_state(key)
 }
 
 fn save_trigger_state(key: &str, value: &str) {
-    let _ = std::fs::create_dir_all("bee/cache/triggers");
-    let _ = std::fs::write(format!("bee/cache/triggers/{}", key), value);
+    let _ = cache::save_state(key, value);
 }
 
 pub fn mark_task_state(task_name: &str, state: &str) {

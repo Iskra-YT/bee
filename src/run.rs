@@ -3,7 +3,6 @@ pub mod dag;
 mod parallel;
 pub mod tasks;
 pub mod cache;
-pub mod triggers;
 
 use anyhow::Result;
 use crate::parser::reader::config as parser;
