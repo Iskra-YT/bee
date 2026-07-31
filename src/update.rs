@@ -24,7 +24,7 @@ pub fn run_update() -> Result<()> {
         return Err(anyhow::anyhow!("git clone failed (exit code {})", code));
     }
 
-    println!("  Building bee (release mode)...");
+    println!("  Building bee...");
     let build_status = Command::new("cargo")
         .args(["build", "--release"])
         .current_dir(&tmp_dir)
@@ -42,6 +42,19 @@ pub fn run_update() -> Result<()> {
     if !std::path::Path::new(&new_binary).exists() {
         let _ = fs::remove_dir_all(&tmp_dir);
         return Err(anyhow::anyhow!("built binary not found at {}", new_binary));
+    }
+
+    let strip_status = Command::new("strip")
+        .args([new_binary])
+        .current_dir(&tmp_dir)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()?;
+
+    if !strip_status.success() {
+        let code = strip_status.code().unwrap_or(-1);
+        let _ = fs::remove_dir_all(&tmp_dir);
+        return Err(anyhow::anyhow!("strip failed (exit code {})", code));
     }
 
     println!("  Installing to {}...", current_exe.display());
