@@ -175,6 +175,29 @@ pub fn modify_rule(
                 }
                 Value::Mapping(m)
             },
+            "subtask_completed" | "subtask_failed" | "subtask_changed" => {
+                let subsystem = params.remove("subsystem").unwrap_or_default();
+                let task_name = params.remove("task").unwrap_or_default();
+                let mut m = serde_yaml::Mapping::new();
+                m.insert(Value::String("type".into()), Value::String(tt.into()));
+                m.insert(Value::String("subsystem".into()), Value::String(subsystem));
+                m.insert(Value::String("task".into()), Value::String(task_name));
+                Value::Mapping(m)
+            },
+            "parent_task_completed" | "parent_task_failed" => {
+                let task_name = params.remove("task").unwrap_or_default();
+                let mut m = serde_yaml::Mapping::new();
+                m.insert(Value::String("type".into()), Value::String(tt.into()));
+                m.insert(Value::String("task".into()), Value::String(task_name));
+                Value::Mapping(m)
+            },
+            "subsystem_changed" => {
+                let subsystem = params.remove("subsystem").unwrap_or_default();
+                let mut m = serde_yaml::Mapping::new();
+                m.insert(Value::String("type".into()), Value::String(tt.into()));
+                m.insert(Value::String("subsystem".into()), Value::String(subsystem));
+                Value::Mapping(m)
+            },
             _ => return Err(anyhow::anyhow!("Unknown trigger type: {}", tt)),
         };
 
@@ -244,7 +267,7 @@ pub fn modify_dep(
     yaml::writer::save_yaml(deps_path, &doc)?;
 
     let deps_hash = hash::hash_string(&file::get_file_content(&String::from(deps_path))?);
-    file::write_file_content(&String::from("bee/system/hash/deps"), &deps_hash)?;
+    hash::write_hash_file("bee/system/hash/deps", &deps_hash)?;
 
     println!("Dependency '{}' modified", name);
     Ok(())

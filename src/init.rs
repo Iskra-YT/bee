@@ -5,12 +5,66 @@ use crate::yaml;
 use crate::hash;
 use crate::time;
 use crate::file;
+use std::io::{self, Write};
+use std::path::Path;
 
-pub fn run_init() -> Result<()> {
+pub fn run_init(name: Option<&str>, yes: bool) -> Result<()> {
     if file::check_bee_directory() {
         println!("bee is already initialized in this directory");
         return Ok(());
     }
+
+    if let Some(parent) = file::find_parent_system() {
+        let parent_abs = fs::canonicalize(&parent).unwrap_or_else(|_| parent.clone());
+        println!("Detected a parent bee system at '{}'.", parent_abs.display());
+        print_parent_chain(&parent)?;
+
+        if yes {
+            return run_init_subsystem(&parent, name);
+        }
+
+        print!("Create a subsystem of it? [S]ubsystem / [F]ull / [C]ancel [S]: ");
+        io::stdout().flush()?;
+        let mut answer = String::new();
+        io::stdin().read_line(&mut answer)?;
+        match answer.trim().to_lowercase().chars().next() {
+            Some('f') => println!("Creating an independent bee project instead."),
+            Some('c') => {
+                println!("Cancelled.");
+                return Ok(());
+            }
+            _ => return run_init_subsystem(&parent, name),
+        }
+    }
+
+    run_init_full()
+}
+
+fn print_parent_chain(parent: &Path) -> Result<()> {
+    let mut current = parent.to_path_buf();
+    let mut depth = 0usize;
+    loop {
+        let abs = fs::canonicalize(&current).unwrap_or_else(|_| current.clone());
+        let label = if depth == 0 { "parent" } else { "ancestor" };
+        let suffix = if current.join("bee/system/parent").exists() {
+            " (this system is itself a subsystem)"
+        } else {
+            ""
+        };
+        println!("  {} bee system: {}{}", label, abs.display(), suffix);
+        let link = current.join("bee/system/parent");
+        let Ok(content) = fs::read_to_string(&link) else { break };
+        let up = Path::new(content.trim()).to_path_buf();
+        current = if up.is_absolute() { up } else { current.join(up) };
+        depth += 1;
+        if depth >= 32 {
+            break;
+        }
+    }
+    Ok(())
+}
+
+fn run_init_full() -> Result<()> {
     let _ = fs::remove_dir_all("bee");
     for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/deps", "bee/system", "bee/system/hash", "bee/scripts/install"].iter() {
         fs::create_dir_all(dir)?;
@@ -66,29 +120,147 @@ pub fn run_init() -> Result<()> {
     file::write_file_content(&String::from("bee/CLAUDE.md"), &CLAUDE_MD.to_string())?;
     println!("  Created bee/CLAUDE.md");
 
-    let bee_gitignore = r#"cache/
-deps/
-system/backup/
-"#;
-
-    file::write_file_content(&String::from("bee/.gitignore"), &bee_gitignore.to_string())?;
+    file::write_file_content(&String::from("bee/.gitignore"), &BEE_GITIGNORE.to_string())?;
     println!("  Created bee/.gitignore");
 
+    write_init_proof()?;
+
+    println!("Initialization complete. Hash: {}", hash::hash_string(&file::get_file_content(&String::from("bee/system/init"))?).chars().take(8).collect::<String>());
+    Ok(())
+}
+
+fn run_init_subsystem(parent: &Path, name: Option<&str>) -> Result<()> {
+    let _ = fs::remove_dir_all("bee");
+    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/system", "bee/system/hash"].iter() {
+        fs::create_dir_all(dir)?;
+    }
+
+    let task_build_config = parser::Task {
+        name: String::from("build"),
+        run: String::from("echo \"Building...!\""),
+        depends_on: Some(vec![]),
+    };
+
+    yaml::writer::save_yaml("bee/tasks/build.yml", &task_build_config)?;
+    println!("  Created tasks/build.yml");
+
+    let task_test_config = parser::Task {
+        name: String::from("test"),
+        run: String::from("echo \"Testing...!\""),
+        depends_on: Some(vec![String::from("build")]),
+    };
+
+    yaml::writer::save_yaml("bee/tasks/test.yml", &task_test_config)?;
+    println!("  Created tasks/test.yml");
+
+    let pipeline_main_config = parser::Pipeline {
+        name: String::from("main"),
+        tasks: vec![String::from("build"), String::from("test")],
+    };
+
+    yaml::writer::save_yaml("bee/pipelines/main.yml", &pipeline_main_config)?;
+    println!("  Created pipelines/main.yml");
+
+    let main_config = parser::MainConfig {
+        tasks: vec![String::from("build"), String::from("test")],
+        rules: vec![],
+        pipelines: vec![String::from("main")]
+    };
+
+    yaml::writer::save_yaml("bee/system/config.yml", &main_config)?;
+    println!("  Created system/config.yml");
+
+    let parent_rel = parent.to_string_lossy().to_string();
+    file::write_file_content(&String::from("bee/system/parent"), &parent_rel)?;
+    println!("  Created system/parent -> {}", parent_rel);
+
+    file::write_file_content(&String::from("bee/.gitignore"), &BEE_GITIGNORE.to_string())?;
+    println!("  Created bee/.gitignore");
+
+    let init_proof = write_init_proof()?;
+
+    let subsystem_name = name.map(String::from).unwrap_or_else(|| {
+        std::env::current_dir()
+            .ok()
+            .and_then(|d| d.file_name().map(|n| n.to_string_lossy().to_string()))
+            .unwrap_or_else(|| String::from("subsystem"))
+    });
+
+    register_subsystem(parent, &subsystem_name, &init_proof)?;
+
+    println!("Subsystem '{}' created and registered in parent.", subsystem_name);
+    Ok(())
+}
+
+fn write_init_proof() -> Result<String> {
     let init_proof: String = hash::hash_string(time::get_timestamp_string().as_str());
     file::write_file_content(&String::from("bee/system/init"), &init_proof)?;
 
     let init_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/init"))?);
-    file::write_file_content(&String::from("bee/system/hash/init"), &init_hash)?;
+    hash::write_hash_file("bee/system/hash/init", &init_hash)?;
 
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
-    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
+    hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
-    let deps_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/deps.yml"))?);
-    file::write_file_content(&String::from("bee/system/hash/deps"), &deps_hash)?;
+    Ok(init_proof)
+}
 
-    println!("Initialization complete. Hash: {}", init_proof.chars().take(8).collect::<String>());
+fn register_subsystem(parent: &Path, name: &str, init_proof: &str) -> Result<()> {
+    let parent_abs = fs::canonicalize(parent)?;
+    let cwd = std::env::current_dir()?;
+
+    let subsystems_path = parent_abs.join("bee/system/subsystems.yml");
+    let mut config: parser::SubsystemsConfig = if subsystems_path.exists() {
+        let content = file::get_file_content(&subsystems_path.to_string_lossy().to_string())?;
+        serde_yaml::from_str(&content).unwrap_or_default()
+    } else {
+        parser::SubsystemsConfig::default()
+    };
+
+    let rel_path = file::relative_path(&parent_abs, &cwd)
+        .to_string_lossy()
+        .to_string();
+
+    let subsystem_hash = hash::hash_string(&format!("{}|{}|{}", name, rel_path, init_proof));
+
+    if let Some(existing) = config.subsystems.iter().find(|s| s.path == rel_path) {
+        let existing_name = existing.name.clone();
+        config.subsystems.retain(|s| s.path != rel_path);
+        println!("Re-registering subsystem '{}' at path '{}'.", existing_name, rel_path);
+    } else if let Some(existing) = config.subsystems.iter().find(|s| s.name == name) {
+        let existing_path = existing.path.clone();
+        anyhow::bail!(
+            "Subsystem name '{}' is already registered at path '{}'. Use --name to choose a different name.",
+            name,
+            existing_path
+        );
+    }
+
+    config.subsystems.push(parser::Subsystem {
+        name: String::from(name),
+        path: rel_path,
+        date: time::get_timestamp_string(),
+        hash: subsystem_hash,
+    });
+
+    yaml::writer::save_yaml(
+        subsystems_path.to_str().unwrap_or("bee/system/subsystems.yml"),
+        &config,
+    )?;
+
+    let subsystems_hash = hash::hash_string(&file::get_file_content(&subsystems_path.to_string_lossy().to_string())?);
+    hash::write_hash_file(
+        &parent_abs.join("bee/system/hash/subsystems").to_string_lossy().to_string(),
+        &subsystems_hash,
+    )?;
+
     Ok(())
 }
+
+const BEE_GITIGNORE: &str = r#"cache/
+deps/
+system/backup/
+"#;
 
 const BEE_README: &str = r#"# Bee - Task Pipeline Orchestration
 
@@ -101,6 +273,7 @@ const BEE_README: &str = r#"# Bee - Task Pipeline Orchestration
 - [Building](#building)
 - [Updating](#updating)
 - [Project Initialization](#project-initialization)
+- [Subsystems](#subsystems)
 - [Directory Structure](#directory-structure)
 - [Managing Tasks](#managing-tasks)
 - [Managing Pipelines](#managing-pipelines)
@@ -127,6 +300,12 @@ cargo test           # run tests
 ```
 
 The binary is at `target/debug/bee` or `target/release/bee`.
+
+Show the installed bee version (the git commit hash recorded at build/install time):
+
+```bash
+bee version
+```
 
 ---
 
@@ -183,6 +362,90 @@ bee/
 ├── README.md            # this file
 └── .gitignore           # ignores cache/deps/backup/hash
 ```
+
+---
+
+## Subsystems
+
+Bee detects when you run `bee init` inside an already-initialized bee project and proposes creating a **subsystem** — a lightweight, self-contained bee instance scoped to the current folder.
+
+### Creating a subsystem
+
+```bash
+bee init
+```
+
+Bee walks up the directory tree, finds the nearest valid parent bee system, and asks:
+
+```
+Detected a parent bee system at '/path/to/parent'.
+Create a subsystem of it in this directory? [Y/n]
+```
+
+- `Y` (default) — creates a lightweight subsystem:
+  - own `bee/tasks/`, `bee/pipelines/`, `bee/rules/` — works independently
+  - minimal `bee/system/` (`init`, `config.yml`, hashes)
+  - `bee/system/parent` — relative pointer back to the parent system
+  - registers itself in the parent's `bee/system/subsystems.yml`
+- `n` — creates a normal, fully independent bee project.
+
+Flags:
+
+```bash
+bee init --yes          # auto-accept subsystem creation (no prompt)
+bee init --name auth    # override subsystem name (default: current directory name)
+```
+
+### Subsystem commands
+
+Within a subsystem the basic commands operate on the subsystem's own resources:
+`bee task`, `bee pipeline`, `bee rule`, `bee run`, `bee status`, `bee sub`.
+`bee install`, `bee backup`, and `bee graph` are **not available in a subsystem**.
+
+```bash
+bee sub list    # in a subsystem: shows the parent + sibling subsystems (marks current)
+                # in a parent: lists registered subsystems
+bee sub status  # shows the link to the parent system and registration details
+```
+
+### Task connections (parent ↔ subsystem)
+
+A parent task can invoke a task inside a subsystem, and tasks on either side can react to each other through trigger rules.
+
+**Parent calls a child task:**
+
+```bash
+bee sub run <subsystem> <task>   # runs <task> inside <subsystem> from the parent context
+```
+
+Run it from a parent task's `run` command to chain systems, e.g.:
+
+```yaml
+name: build-all
+run: bee sub run auth build && bee sub run payments build
+```
+
+**Parent reacts to a subsystem** — create a rule in the parent with one of:
+
+```bash
+bee rule modify on-child --trigger-type subtask_completed --trigger-param subsystem=auth --trigger-param task=build
+bee rule modify on-child --trigger-type subtask_failed    --trigger-param subsystem=auth --trigger-param task=build
+bee rule modify on-child --trigger-type subtask_changed   --trigger-param subsystem=auth --trigger-param task=build
+bee rule modify on-child --trigger-type subsystem_changed --trigger-param subsystem=auth
+```
+
+**Subsystem reacts to the parent** — create a rule inside the subsystem:
+
+```bash
+bee rule modify after-parent --trigger-type parent_task_completed --trigger-param task=deploy
+bee rule modify after-parent --trigger-type parent_task_failed    --trigger-param task=deploy
+```
+
+The state of each task lives in the owning system's `bee/cache/triggers/`, so `subtask_*`/`subsystem_changed` read the subsystem's cache from the parent, and `parent_task_*` reads the parent's cache from the subsystem.
+
+### Parent registry
+
+The parent system stores `bee/system/subsystems.yml` (name, path, date, hash) and a tamper-detection hash in `bee/system/hash/subsystems`. The file is created on demand, so existing projects work without changes.
 
 ---
 
@@ -413,6 +676,9 @@ bee rule modify <name> [--task <task>] [--trigger-type <type>] [--trigger-param 
 | `dependency_missing` | `path=/path/to/file` |
 | `schedule` | `cron=0 * * * *` |
 | `git_tag` | `pattern=v1.*` |
+| `subtask_completed`, `subtask_failed`, `subtask_changed` | `subsystem=name`, `task=name` |
+| `parent_task_completed`, `parent_task_failed` | `task=name` |
+| `subsystem_changed` | `subsystem=name` |
 
 ```bash
 bee rule modify rebuild --trigger-type file_change --trigger-param "paths=src/**/*.rs,src/**/*.c"
@@ -667,6 +933,12 @@ Rules define **when** tasks should run. Without a rule, a task runs every time.
 | `checksum_changed` | Run when file checksums change | `paths` — list of globs |
 | `schedule` | Run on a cron schedule | `cron` — cron expression |
 | `git_tag` | Run on git tags | `pattern` — optional pattern |
+| `subtask_completed` | Run when a task in a subsystem succeeds | `subsystem`, `task` |
+| `subtask_failed` | Run when a task in a subsystem fails | `subsystem`, `task` |
+| `subtask_changed` | Run when a task in a subsystem changes state | `subsystem`, `task` |
+| `parent_task_completed` | Run when a task in the parent system succeeds (in a subsystem) | `task` |
+| `parent_task_failed` | Run when a task in the parent system fails (in a subsystem) | `task` |
+| `subsystem_changed` | Run when any task state in a subsystem changes | `subsystem` |
 
 ### Examples
 
@@ -783,6 +1055,9 @@ Bee stores SHA-256 hashes:
 - `bee/system/hash/init` — hash of init file
 - `bee/system/hash/config` — hash of config.yml
 - `bee/system/hash/deps` — hash of deps.yml
+- `bee/system/hash/subsystems` — hash of the parent's subsystems registry
+
+Each `bee/system/hash/<file>` entry has a companion `bee/system/hash/<file>.bee` containing the bee git hash (`bee version`) that created it.
 
 The system verifies integrity on every operation. If hashes don't match, bee returns "run bee init first".
 "#;
@@ -807,6 +1082,7 @@ Before any operation on the bee system (modifying tasks, pipelines, rules, runni
 4. **After modifying tasks** consider running `bee clean` to reset trigger states
 5. **Before creating new tasks/pipelines/rules** check existing ones with `bee list`
 7. **Never add new rule/pipeline/task without running command** — this elements won't be visible for bee system
+8. **Subsystems**: running `bee init` in a subfolder of an existing bee project proposes creating a subsystem (own tasks/pipelines/rules linked to the parent). Inspect relationships with `bee sub list` / `bee sub status`. In a subsystem `bee install`, `bee backup`, and `bee graph` are unavailable.
 
 ## File Structure
 
@@ -825,7 +1101,9 @@ bee/
 
 ```bash
 bee init                                         # Initialize project
+bee init --name <n> --yes                         # Create subsystem without prompt
 bee update                                        # Update bee to latest version
+bee version                                       # Show installed bee git hash
 bee list                                         # List everything
 bee status                                       # Project status
 bee run                                          # Run all pipelines
@@ -860,6 +1138,15 @@ bee install remove <name>                        # Remove dependency
 bee backup create                                # Create backup
 bee backup list                                  # List backups
 bee backup restore <hash>                        # Restore backup
+
+bee sub list                                     # List subsystems (parent or siblings)
+bee sub status                                   # Show subsystem link to parent
+bee sub run <sub> <task>                         # Run a task inside a subsystem
+
+# Subsystem-aware trigger types:
+#   subtask_completed/failed/changed: --trigger-param subsystem=<sub> --trigger-param task=<task>
+#   parent_task_completed/failed:     --trigger-param task=<task>
+#   subsystem_changed:                --trigger-param subsystem=<sub>
 ```
 "#;
 

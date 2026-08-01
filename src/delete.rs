@@ -9,7 +9,7 @@ pub fn delete_task(name: &String) -> Result<()> {
     yaml::modify::remove_from_yaml_list(&String::from("bee/system/config.yml"), &String::from("tasks"), name)?;
 
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
-    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
+    hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
     println!("Task '{}' deleted", name);
     Ok(())
@@ -20,7 +20,7 @@ pub fn delete_pipeline(name: &String) -> Result<()> {
     yaml::modify::remove_from_yaml_list(&String::from("bee/system/config.yml"), &String::from("pipelines"), name)?;
 
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
-    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
+    hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
     println!("Pipeline '{}' deleted", name);
     Ok(())
@@ -31,7 +31,7 @@ pub fn delete_rule(name: &String) -> Result<()> {
     yaml::modify::remove_from_yaml_list(&String::from("bee/system/config.yml"), &String::from("rules"), name)?;
 
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
-    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
+    hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
     println!("Rule '{}' deleted", name);
     Ok(())

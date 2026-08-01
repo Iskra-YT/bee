@@ -18,7 +18,7 @@ pub fn create_task(name: &String, depends_on: Vec<String>, run: Option<String>) 
     yaml::modify::append_to_yaml_list(&String::from("bee/system/config.yml"), &String::from("tasks"), name)?;
 
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
-    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
+    hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
     println!("Task '{}' created", name);
     Ok(())
@@ -34,7 +34,7 @@ pub fn create_pipeline(name: &String, tasks: Vec<String>) -> Result<()> {
     yaml::modify::append_to_yaml_list(&String::from("bee/system/config.yml"), &String::from("pipelines"), name)?;
 
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
-    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
+    hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
     println!("Pipeline '{}' created", name);
     Ok(())
@@ -51,7 +51,7 @@ pub fn create_rule(name: &String, task: &String) -> Result<()> {
     yaml::modify::append_to_yaml_list(&String::from("bee/system/config.yml"), &String::from("rules"), name)?;
 
     let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
-    file::write_file_content(&String::from("bee/system/hash/config"), &config_hash)?;
+    hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
     println!("Rule '{}' created", name);
     Ok(())

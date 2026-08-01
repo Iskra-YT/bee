@@ -62,8 +62,18 @@ pub fn run_update() -> Result<()> {
     fs::copy(&new_binary, &current_exe)?;
     fs::set_permissions(&current_exe, fs::Permissions::from_mode(0o755))?;
 
+    let new_hash = Command::new("git")
+        .args(["-C", &tmp_dir, "rev-parse", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| String::from("unknown"));
+
     let _ = fs::remove_dir_all(&tmp_dir);
 
-    println!("  bee updated successfully to {}", current_exe.display());
+    println!("  bee updated successfully to {} (git {})", current_exe.display(), new_hash);
+    println!("  run 'bee version' to confirm");
     Ok(())
 }

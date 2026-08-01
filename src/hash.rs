@@ -24,3 +24,16 @@ pub fn hash_file(path: &str) -> io::Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
+pub fn bee_git_hash() -> &'static str {
+    option_env!("BEE_GIT_HASH").unwrap_or("unknown")
+}
+
+pub fn write_hash_file(path: &str, value: &str) -> io::Result<()> {
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, value)?;
+    fs::write(format!("{}.bee", path), bee_git_hash())?;
+    Ok(())
+}
+

@@ -14,8 +14,8 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Initialize bee in the current directory
-    #[command(about = "Initialize bee project structure")]
-    Init,
+    #[command(about = "Initialize bee project structure (proposes a subsystem if a parent bee system is found)")]
+    Init(InitArgs),
 
     /// Run all pipelines
     #[command(about = "Run all pipelines in dependency order")]
@@ -36,6 +36,10 @@ pub enum Commands {
     /// Update bee to the latest version from GitHub
     #[command(about = "Update bee to the latest version")]
     Update,
+
+    /// Show the installed bee git hash (recorded at build/install time)
+    #[command(about = "Show the installed bee git hash")]
+    Version,
 
     /// Visualize dependency graphs
     #[command(about = "Render dependency graphs for pipelines")]
@@ -60,6 +64,91 @@ pub enum Commands {
     /// Manage configuration backups
     #[command(about = "Create, list, and restore configuration backups")]
     Backup(BackupArgs),
+
+    /// Manage bee subsystems
+    #[command(about = "List and inspect bee subsystems linked to a parent system")]
+    Sub(SubArgs),
+}
+
+// ─── Init ────────────────────────────────────────────────────────────
+
+#[derive(Args)]
+pub struct InitArgs {
+    /// Subsystem name (default: current directory name)
+    #[arg(long, help = "Name for the subsystem (default: current directory name)")]
+    pub name: Option<String>,
+
+    /// Auto-confirm subsystem creation without prompting
+    #[arg(short, long, help = "Create a subsystem without prompting")]
+    pub yes: bool,
+}
+
+// ─── Sub ─────────────────────────────────────────────────────────────
+
+#[derive(Args)]
+pub struct SubArgs {
+    #[command(subcommand)]
+    pub command: SubCommand,
+}
+
+#[derive(Subcommand)]
+pub enum SubCommand {
+    /// List subsystems
+    #[command(about = "List subsystems registered in this project or in the parent system")]
+    List,
+
+    /// Show subsystem status
+    #[command(about = "Show subsystem details and its link to the parent system")]
+    Status,
+
+    /// Run a task inside a subsystem
+    #[command(about = "Invoke a task in a subsystem from the parent context")]
+    Run {
+        /// Subsystem name
+        subsystem: String,
+
+        /// Task name to run inside the subsystem
+        task: String,
+    },
+
+    /// Remove a subsystem from the registry
+    #[command(about = "Unregister a subsystem (optionally delete its directory)")]
+    Remove {
+        /// Subsystem name
+        name: String,
+
+        /// Also delete the subsystem directory
+        #[arg(long, help = "Also delete the subsystem directory")]
+        delete: bool,
+    },
+
+    /// Diagnose subsystem registration issues
+    #[command(about = "Check registered subsystems for broken links, missing directories, and hash mismatches")]
+    Doctor,
+
+    /// Inspect dependencies inherited from the parent system (read-only)
+    #[command(about = "List or resolve dependencies inherited from the parent system")]
+    Deps(DepsArgs),
+}
+
+#[derive(Args)]
+pub struct DepsArgs {
+    #[command(subcommand)]
+    pub command: DepsCommand,
+}
+
+#[derive(Subcommand)]
+pub enum DepsCommand {
+    /// List dependencies inherited from the parent system
+    #[command(about = "List dependencies inherited from the parent system (read-only)")]
+    List,
+
+    /// Print the path to an inherited dependency
+    #[command(about = "Print the path to a dependency installed by the parent system")]
+    Path {
+        /// Dependency name
+        name: String,
+    },
 }
 
 // ─── Task ───────────────────────────────────────────────────────────
@@ -216,11 +305,11 @@ pub enum RuleCommand {
         task: Option<String>,
 
         /// Add a trigger type (see available types below)
-        #[arg(long = "trigger-type", help = "Trigger type: manual, always, file_change, git_changed, task_completed, task_failed, dependency_changed, env_changed, dependency_missing, checksum_changed, schedule, git_tag")]
+        #[arg(long = "trigger-type", help = "Trigger type: manual, always, file_change, git_changed, task_completed, task_failed, dependency_changed, env_changed, dependency_missing, checksum_changed, schedule, git_tag, subtask_completed, subtask_failed, subtask_changed, parent_task_completed, parent_task_failed, subsystem_changed")]
         trigger_type: Option<String>,
 
         /// Trigger parameters as key=value pairs (repeatable)
-        #[arg(long = "trigger-param", help = "Param for the trigger (repeatable): paths=glob1,glob2 | task=name | vars=VAR1,VAR2 | path=/file | cron=expr | pattern=regex")]
+        #[arg(long = "trigger-param", help = "Param for the trigger (repeatable): paths=glob1,glob2 | task=name | subsystem=name | vars=VAR1,VAR2 | path=/file | cron=expr | pattern=regex")]
         trigger_params: Vec<String>,
     },
 

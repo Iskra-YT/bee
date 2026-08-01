@@ -82,6 +82,30 @@ fn evaluate_trigger(trigger: &RuleTrigger, task_name: &str) -> bool {
         RuleTrigger::ChecksumChanged { paths } => {
             check_checksum_changed(paths, task_name)
         }
+
+        RuleTrigger::SubtaskCompleted { subsystem, task } => {
+            check_subtask_state(subsystem, task, "completed")
+        }
+
+        RuleTrigger::SubtaskFailed { subsystem, task } => {
+            check_subtask_state(subsystem, task, "failed")
+        }
+
+        RuleTrigger::SubtaskChanged { subsystem, task } => {
+            check_subtask_changed(subsystem, task)
+        }
+
+        RuleTrigger::ParentTaskCompleted { task } => {
+            check_parent_task_state(task, "completed")
+        }
+
+        RuleTrigger::ParentTaskFailed { task } => {
+            check_parent_task_state(task, "failed")
+        }
+
+        RuleTrigger::SubsystemChanged { subsystem } => {
+            check_subsystem_changed(subsystem)
+        }
     }
 }
 
@@ -204,6 +228,79 @@ fn glob_match(pattern: &str, path: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn check_subtask_state(subsystem: &str, task: &str, expected: &str) -> bool {
+    let Some(dir) = crate::sub::resolve_subsystem_dir(subsystem) else {
+        return false;
+    };
+    let state = cache::get_state_at(&dir.to_string_lossy(), &format!("task_{}", task));
+    state.map(|s| s == expected).unwrap_or(false)
+}
+
+fn check_parent_task_state(task: &str, expected: &str) -> bool {
+    let Some(dir) = crate::file::resolve_parent_dir() else {
+        return false;
+    };
+    let state = cache::get_state_at(&dir.to_string_lossy(), &format!("task_{}", task));
+    state.map(|s| s == expected).unwrap_or(false)
+}
+
+fn check_subtask_changed(subsystem: &str, task: &str) -> bool {
+    let state_key = format!("subtask_{}_{}", subsystem, task);
+    let last_state = get_trigger_state(&state_key);
+    let Some(dir) = crate::sub::resolve_subsystem_dir(subsystem) else {
+        return false;
+    };
+    let current = cache::get_state_at(&dir.to_string_lossy(), &format!("task_{}", task))
+        .unwrap_or_else(|| String::from("none"));
+
+    if let Some(last) = last_state {
+        let changed = last != current;
+        if changed {
+            save_trigger_state(&state_key, &current);
+        }
+        changed
+    } else {
+        save_trigger_state(&state_key, &current);
+        true
+    }
+}
+
+fn check_subsystem_changed(subsystem: &str) -> bool {
+    let state_key = format!("subsystem_state_{}", subsystem);
+    let last_state = get_trigger_state(&state_key);
+    let Some(dir) = crate::sub::resolve_subsystem_dir(subsystem) else {
+        return false;
+    };
+    let current = compute_subsystem_state_hash(&dir);
+
+    if let Some(last) = last_state {
+        let changed = last != current;
+        if changed {
+            save_trigger_state(&state_key, &current);
+        }
+        changed
+    } else {
+        save_trigger_state(&state_key, &current);
+        true
+    }
+}
+
+fn compute_subsystem_state_hash(dir: &std::path::Path) -> String {
+    let mut entries: Vec<String> = vec![];
+    if let Ok(triggers) = std::fs::read_dir(dir.join("bee/cache/triggers")) {
+        for entry in triggers.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("task_") {
+                if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                    entries.push(format!("{}={}", name, content.trim()));
+                }
+            }
+        }
+    }
+    entries.sort();
+    crate::hash::hash_string(&entries.join("|"))
+}
+
 fn get_trigger_state(key: &str) -> Option<String> {
     cache::get_state(key)
 }
@@ -242,10 +339,14 @@ pub fn run_task(task: crate::parser::Task) -> anyhow::Result<()> {
 }
 
 pub fn run_command(command: &str) -> anyhow::Result<(String, String)> {
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .output()?;
+    let mut cmd = Command::new("sh");
+    cmd.arg("-c").arg(command);
+
+    if let Some(owner) = crate::sub::deps_owner_dir() {
+        cmd.env("BEE_DEPS_PATH", owner.join("bee/deps"));
+    }
+
+    let output = cmd.output()?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

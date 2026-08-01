@@ -16,6 +16,7 @@ mod graph;
 mod status;
 mod install;
 mod update;
+mod sub;
 
 use clap::Parser;
 use cli::Cli;
@@ -37,17 +38,25 @@ fn main() {
             update::run_update().unwrap_or_else(|e| eprintln!("Error: {}", e));
         },
 
+        cli::Commands::Version => {
+            println!("{}", hash::bee_git_hash());
+        },
+
         cli::Commands::Run => {
             if !file::check_bee_directory() {
                 eprintln!("Error: run bee init first");
                 return;
             }
 
-            run::run_all().unwrap_or_else(|e| eprintln!("Error: {}", e));
+            if let Err(e) = run::run_all() {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
         },
 
-        cli::Commands::Init => {
-            init::run_init().unwrap_or_else(|e| eprintln!("Error: {}", e));
+        cli::Commands::Init(init_args) => {
+            init::run_init(init_args.name.as_deref(), init_args.yes)
+                .unwrap_or_else(|e| eprintln!("Error: {}", e));
         },
 
         cli::Commands::List => {
@@ -108,6 +117,11 @@ fn main() {
                 return;
             }
 
+            if file::is_subsystem() {
+                eprintln!("Error: backup is not available in a subsystem");
+                return;
+            }
+
             match backup_args.command {
                 cli::BackupCommand::Create => {
                     system::backup::make_backup().unwrap_or_else(|e| eprintln!("Error: {}", e));
@@ -121,6 +135,41 @@ fn main() {
             }
         }
 
+        cli::Commands::Sub(sub_args) => {
+            if !file::check_bee_directory() {
+                eprintln!("Error: run bee init first");
+                return;
+            }
+
+            match sub_args.command {
+                cli::SubCommand::List => {
+                    sub::sub_list().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+                cli::SubCommand::Status => {
+                    sub::sub_status().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+                cli::SubCommand::Run { subsystem, task } => {
+                    sub::sub_run(&subsystem, &task).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+                cli::SubCommand::Remove { name, delete } => {
+                    sub::sub_remove(&name, delete).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+                cli::SubCommand::Doctor => {
+                    sub::sub_doctor().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+                cli::SubCommand::Deps(deps_args) => {
+                    match deps_args.command {
+                        cli::DepsCommand::List => {
+                            sub::sub_deps_list().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                        },
+                        cli::DepsCommand::Path { name } => {
+                            sub::sub_deps_path(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                        },
+                    }
+                },
+            }
+        }
+
         cli::Commands::Pipeline(pipeline_args) => {
             match pipeline_args.command {
                 cli::PipelineCommand::Run { name } => {
@@ -129,7 +178,10 @@ fn main() {
                         return;
                     }
 
-                    run::run_pipeline(name, None).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    if let Err(e) = run::run_pipeline(name, None) {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
                 },
 
                 cli::PipelineCommand::List => {
@@ -179,7 +231,10 @@ fn main() {
                         return;
                     }
 
-                    run::run_task(name).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    if let Err(e) = run::run_task(name) {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
                 },
 
                 cli::TaskCommand::List => {
@@ -266,6 +321,11 @@ fn main() {
         cli::Commands::Install(install_args) => {
             if !file::check_bee_directory() {
                 eprintln!("Error: run bee init first");
+                return;
+            }
+
+            if file::is_subsystem() {
+                eprintln!("Error: install is not available in a subsystem");
                 return;
             }
 

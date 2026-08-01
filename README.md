@@ -8,6 +8,7 @@
 
 - [Building](#building)
 - [Project Initialization](#project-initialization)
+- [Subsystems](#subsystems)
 - [Directory Structure](#directory-structure)
 - [Managing Tasks](#managing-tasks)
 - [Managing Pipelines](#managing-pipelines)
@@ -34,6 +35,14 @@ cargo test           # run tests
 ```
 
 The binary is at `target/debug/bee` or `target/release/bee`.
+
+The git commit hash of the source is embedded at build time. Show the installed version:
+
+```bash
+bee version
+```
+
+This prints the `git rev-parse HEAD` hash recorded when the binary was built/installed (e.g. by `bee update`).
 
 ---
 
@@ -68,6 +77,90 @@ bee/
 ├── README.md            # this file
 └── .gitignore           # ignores cache/deps/backup/hash
 ```
+
+---
+
+## Subsystems
+
+Bee detects when you run `bee init` inside an already-initialized bee project and proposes creating a **subsystem** — a lightweight, self-contained bee instance scoped to the current folder.
+
+### Creating a subsystem
+
+```bash
+bee init
+```
+
+Bee walks up the directory tree, finds the nearest valid parent bee system, and asks:
+
+```
+Detected a parent bee system at '/path/to/parent'.
+Create a subsystem of it in this directory? [Y/n]
+```
+
+- `Y` (default) — creates a lightweight subsystem:
+  - own `bee/tasks/`, `bee/pipelines/`, `bee/rules/` — works independently
+  - minimal `bee/system/` (`init`, `config.yml`, hashes)
+  - `bee/system/parent` — relative pointer back to the parent system
+  - registers itself in the parent's `bee/system/subsystems.yml`
+- `n` — creates a normal, fully independent bee project.
+
+Flags:
+
+```bash
+bee init --yes          # auto-accept subsystem creation (no prompt)
+bee init --name auth    # override subsystem name (default: current directory name)
+```
+
+### Subsystem commands
+
+Within a subsystem the basic commands operate on the subsystem's own resources:
+`bee task`, `bee pipeline`, `bee rule`, `bee run`, `bee status`, `bee sub`.
+`bee install`, `bee backup`, and `bee graph` are **not available in a subsystem**.
+
+```bash
+bee sub list    # in a subsystem: shows the parent + sibling subsystems (marks current)
+                # in a parent: lists registered subsystems
+bee sub status  # shows the link to the parent system and registration details
+```
+
+### Task connections (parent ↔ subsystem)
+
+A parent task can invoke a task inside a subsystem, and tasks on either side can react to each other through trigger rules.
+
+**Parent calls a child task:**
+
+```bash
+bee sub run <subsystem> <task>   # runs <task> inside <subsystem> from the parent context
+```
+
+Run it from a parent task's `run` command to chain systems, e.g.:
+
+```yaml
+name: build-all
+run: bee sub run auth build && bee sub run payments build
+```
+
+**Parent reacts to a subsystem** — create a rule in the parent with one of:
+
+```bash
+bee rule modify on-child --trigger-type subtask_completed --trigger-param subsystem=auth --trigger-param task=build
+bee rule modify on-child --trigger-type subtask_failed    --trigger-param subsystem=auth --trigger-param task=build
+bee rule modify on-child --trigger-type subtask_changed   --trigger-param subsystem=auth --trigger-param task=build
+bee rule modify on-child --trigger-type subsystem_changed --trigger-param subsystem=auth
+```
+
+**Subsystem reacts to the parent** — create a rule inside the subsystem:
+
+```bash
+bee rule modify after-parent --trigger-type parent_task_completed --trigger-param task=deploy
+bee rule modify after-parent --trigger-type parent_task_failed    --trigger-param task=deploy
+```
+
+The state of each task lives in the owning system's `bee/cache/triggers/`, so `subtask_*`/`subsystem_changed` read the subsystem's cache from the parent, and `parent_task_*` reads the parent's cache from the subsystem.
+
+### Parent registry
+
+The parent system stores `bee/system/subsystems.yml` (name, path, date, hash) and a tamper-detection hash in `bee/system/hash/subsystems`. The file is created on demand, so existing projects work without changes.
 
 ---
 
@@ -418,6 +511,12 @@ Rules define **when** tasks should run. Without a rule, a task runs every time.
 | `checksum_changed` | Run when file checksums change | `paths` — list of globs |
 | `schedule` | Run on a cron schedule | `cron` — cron expression |
 | `git_tag` | Run on git tags | `pattern` — optional pattern |
+| `subtask_completed` | Run when a task in a subsystem succeeds | `subsystem`, `task` |
+| `subtask_failed` | Run when a task in a subsystem fails | `subsystem`, `task` |
+| `subtask_changed` | Run when a task in a subsystem changes state | `subsystem`, `task` |
+| `parent_task_completed` | Run when a task in the parent system succeeds (in a subsystem) | `task` |
+| `parent_task_failed` | Run when a task in the parent system fails (in a subsystem) | `task` |
+| `subsystem_changed` | Run when any task state in a subsystem changes | `subsystem` |
 
 ### Examples
 
@@ -576,5 +675,9 @@ Bee stores SHA-256 hashes:
 - `bee/system/init` — initialization proof
 - `bee/system/hash/init` — hash of init file
 - `bee/system/hash/config` — hash of config.yml
+- `bee/system/hash/deps` — hash of deps.yml
+- `bee/system/hash/subsystems` — hash of the parent's subsystems registry
+
+Each `bee/system/hash/<file>` entry has a companion `bee/system/hash/<file>.bee` containing the bee git hash (`bee version`) that created it, so future versions can tell which bee build produced each hash.
 
 The system verifies integrity on every operation. If hashes don't match, bee returns "run bee init first".

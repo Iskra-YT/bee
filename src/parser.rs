@@ -70,6 +70,18 @@ pub enum RuleTrigger {
     DependencyMissing { path: String },
     #[serde(rename = "checksum_changed")]
     ChecksumChanged { paths: Vec<String> },
+    #[serde(rename = "subtask_completed")]
+    SubtaskCompleted { subsystem: String, task: String },
+    #[serde(rename = "subtask_failed")]
+    SubtaskFailed { subsystem: String, task: String },
+    #[serde(rename = "subtask_changed")]
+    SubtaskChanged { subsystem: String, task: String },
+    #[serde(rename = "parent_task_completed")]
+    ParentTaskCompleted { task: String },
+    #[serde(rename = "parent_task_failed")]
+    ParentTaskFailed { task: String },
+    #[serde(rename = "subsystem_changed")]
+    SubsystemChanged { subsystem: String },
 }
 
 #[derive(Serialize)]
@@ -108,7 +120,21 @@ pub struct Dependency {
     pub path: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Subsystem {
+    pub name: String,
+    pub path: String,
+    pub date: String,
+    pub hash: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct SubsystemsConfig {
+    #[serde(default)]
+    pub subsystems: Vec<Subsystem>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct DepsConfig {
     pub dependencies: Vec<Dependency>,
 }

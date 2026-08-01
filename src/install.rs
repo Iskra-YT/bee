@@ -15,7 +15,7 @@ const DEPS_HASH_PATH: &str = "bee/system/hash/deps";
 
 fn update_deps_hash() -> Result<()> {
     let deps_hash = hash::hash_string(&file::get_file_content(&String::from(DEPS_PATH))?);
-    file::write_file_content(&String::from(DEPS_HASH_PATH), &deps_hash)?;
+    hash::write_hash_file(DEPS_HASH_PATH, &deps_hash)?;
     Ok(())
 }
 
