@@ -53,6 +53,8 @@ pub fn modify_pipeline(
     name: &str,
     add_tasks: &[String],
     rm_tasks: &[String],
+    add_pipelines: &[String],
+    rm_pipelines: &[String],
 ) -> Result<()> {
     let path = format!("bee/pipelines/{}.yml", name);
     let content = file::get_file_content(&String::from(&path))?;
@@ -77,6 +79,30 @@ pub fn modify_pipeline(
         Value::String("tasks".into()),
         Value::Sequence(seq),
     );
+
+    if !add_pipelines.is_empty() || !rm_pipelines.is_empty() {
+        let mut pipelines: Vec<String> = mapping.get(&Value::String("pipelines".into()))
+            .and_then(|v| v.as_sequence())
+            .map(|seq| seq.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .unwrap_or_default();
+
+        for p in add_pipelines {
+            if !pipelines.contains(p) {
+                pipelines.push(p.clone());
+            }
+        }
+        pipelines.retain(|p| !rm_pipelines.contains(p));
+
+        if pipelines.is_empty() {
+            mapping.remove(&Value::String("pipelines".into()));
+        } else {
+            let seq: Vec<Value> = pipelines.into_iter().map(Value::String).collect();
+            mapping.insert(
+                Value::String("pipelines".into()),
+                Value::Sequence(seq),
+            );
+        }
+    }
 
     yaml::writer::save_yaml(&path, &doc)?;
     println!("Pipeline '{}' modified", name);

@@ -17,6 +17,7 @@ mod status;
 mod install;
 mod update;
 mod sub;
+mod docs;
 
 use clap::Parser;
 use cli::Cli;
@@ -135,6 +136,19 @@ fn main() {
             }
         }
 
+        cli::Commands::Docs(docs_args) => {
+            if !file::check_bee_directory() {
+                eprintln!("Error: run bee init first");
+                return;
+            }
+
+            match docs_args.command {
+                cli::DocsCommand::Update => {
+                    docs::update_docs().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                },
+            }
+        }
+
         cli::Commands::Sub(sub_args) => {
             if !file::check_bee_directory() {
                 eprintln!("Error: run bee init first");
@@ -193,22 +207,22 @@ fn main() {
                    list::list_pipelines().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
-                cli::PipelineCommand::Create { name, tasks } => {
+                cli::PipelineCommand::Create { name, tasks, pipelines } => {
                     if !file::check_bee_directory() {
                         eprintln!("Error: run bee init first");
                         return;
                     }
 
-                    add::create_pipeline(&name, tasks).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    add::create_pipeline(&name, tasks, pipelines).unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 
-                cli::PipelineCommand::Modify { name, add_tasks, rm_tasks } => {
+                cli::PipelineCommand::Modify { name, add_tasks, rm_tasks, add_pipelines, rm_pipelines } => {
                     if !file::check_bee_directory() {
                         eprintln!("Error: run bee init first");
                         return;
                     }
 
-                    modify::modify_pipeline(&name, &add_tasks, &rm_tasks)
+                    modify::modify_pipeline(&name, &add_tasks, &rm_tasks, &add_pipelines, &rm_pipelines)
                         .unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
 

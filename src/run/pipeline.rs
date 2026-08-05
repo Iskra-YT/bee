@@ -1,9 +1,52 @@
 use crate::run::dag;
 use anyhow::Result;
 use crate::run::parallel;
+use crate::parser::reader::config as reader;
 use std::collections::HashSet;
 
 pub fn run_pipeline(config: crate::parser::Pipeline) -> Result<()> {
+    let mut seen: Vec<String> = vec![];
+    run_pipeline_recursive(config, &mut seen, 0)
+}
+
+fn run_pipeline_recursive(config: crate::parser::Pipeline, seen: &mut Vec<String>, depth: usize) -> Result<()> {
+    if seen.contains(&config.name) {
+        let mut cycle: Vec<String> = seen.clone();
+        cycle.push(config.name.clone());
+        return Err(anyhow::anyhow!(
+            "Subpipeline cycle detected: {}",
+            cycle.join(" -> ")
+        ));
+    }
+    seen.push(config.name.clone());
+
+    let mut sub_failed: Vec<String> = vec![];
+
+    for sub_name in &config.pipelines {
+        match reader::read_pipeline(sub_name) {
+            Ok(sub) => {
+                println!("  {}Pipeline '{}' invokes subpipeline '{}'", "  ".repeat(depth), config.name, sub.name);
+                if let Err(e) = run_pipeline_recursive(sub, seen, depth + 1) {
+                    sub_failed.push(format!("{}: {}", sub_name, e));
+                }
+            }
+            Err(e) => {
+                sub_failed.push(format!("{}: {}", sub_name, e));
+            }
+        }
+    }
+
+    seen.pop();
+
+    if !sub_failed.is_empty() {
+        eprintln!("\x1b[31mPipeline '{}' failed:\x1b[0m subpipeline(s) failed: {}", config.name, sub_failed.join(", "));
+        return Err(anyhow::anyhow!("Pipeline '{}' failed: subpipeline(s) failed", config.name));
+    }
+
+    run_pipeline_tasks(config)
+}
+
+fn run_pipeline_tasks(config: crate::parser::Pipeline) -> Result<()> {
     let (task_order, graph) = dag::build_dag(config.clone())?;
     let order = parallel::find_parallel_groups(&graph, &task_order);
 

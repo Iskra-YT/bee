@@ -20,6 +20,9 @@ pub fn show_status() -> Result<()> {
             let content = file::get_file_content(&format!("bee/pipelines/{}.yml", p.name));
             if let Ok(c) = content {
                 if let Ok(pipe) = reader::read_pipeline_from_string(&c) {
+                    if !pipe.pipelines.is_empty() {
+                        println!("    subpipelines: {}", pipe.pipelines.join(", "));
+                    }
                     for task_name in &pipe.tasks {
                         let status = get_task_status(task_name);
                         println!("    {}{}", task_name, status);

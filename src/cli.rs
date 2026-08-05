@@ -68,6 +68,10 @@ pub enum Commands {
     /// Manage bee subsystems
     #[command(about = "List and inspect bee subsystems linked to a parent system")]
     Sub(SubArgs),
+
+    /// Update documentation files inside bee/
+    #[command(about = "Regenerate the .md documentation files inside bee/")]
+    Docs(DocsArgs),
 }
 
 // ─── Init ────────────────────────────────────────────────────────────
@@ -149,6 +153,21 @@ pub enum DepsCommand {
         /// Dependency name
         name: String,
     },
+}
+
+// ─── Docs ───────────────────────────────────────────────────────────
+
+#[derive(Args)]
+pub struct DocsArgs {
+    #[command(subcommand)]
+    pub command: DocsCommand,
+}
+
+#[derive(Subcommand)]
+pub enum DocsCommand {
+    /// Regenerate the .md documentation files inside bee/
+    #[command(about = "Update bee/README.md, bee/AGENTS.md, and bee/CLAUDE.md from the built-in templates")]
+    Update,
 }
 
 // ─── Task ───────────────────────────────────────────────────────────
@@ -240,10 +259,14 @@ pub enum PipelineCommand {
         /// Add a task to the pipeline (repeatable: -t compile -t test)
         #[arg(short, long = "task", help = "Task to include (repeatable)")]
         tasks: Vec<String>,
+
+        /// Add a subpipeline to invoke (repeatable: -p build -p deploy)
+        #[arg(short, long = "pipeline", help = "Subpipeline to invoke (repeatable)")]
+        pipelines: Vec<String>,
     },
 
     /// Modify an existing pipeline
-    #[command(about = "Add or remove tasks from a pipeline")]
+    #[command(about = "Add or remove tasks and subpipelines from a pipeline")]
     Modify {
         /// Pipeline name to modify
         name: String,
@@ -255,6 +278,14 @@ pub enum PipelineCommand {
         /// Remove a task (repeatable)
         #[arg(long = "rm-task", help = "Remove a task (repeatable)")]
         rm_tasks: Vec<String>,
+
+        /// Add a subpipeline (repeatable, skips duplicates)
+        #[arg(long = "add-pipeline", help = "Add a subpipeline (repeatable, skips duplicates)")]
+        add_pipelines: Vec<String>,
+
+        /// Remove a subpipeline (repeatable)
+        #[arg(long = "rm-pipeline", help = "Remove a subpipeline (repeatable)")]
+        rm_pipelines: Vec<String>,
     },
 
     /// Delete a pipeline

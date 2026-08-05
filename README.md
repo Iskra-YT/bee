@@ -44,6 +44,14 @@ bee version
 
 This prints the `git rev-parse HEAD` hash recorded when the binary was built/installed (e.g. by `bee update`).
 
+### Update project documentation
+
+`bee init` also writes `bee/README.md`, `bee/AGENTS.md`, and `bee/CLAUDE.md` inside each project. Regenerate them from the built-in templates with:
+
+```bash
+bee docs update
+```
+
 ---
 
 ## Project Initialization
@@ -242,10 +250,13 @@ Tasks without `depends_on` or with an empty list have no dependencies and run fi
 ### Create a pipeline
 
 ```bash
-bee pipeline create <name>
+bee pipeline create <name> [-t <task>...] [-p <pipeline>...]
 ```
 
-Creates an empty `bee/pipelines/<name>.yml`.
+| Flag | Description |
+|------|-------------|
+| `-t <task>` | Add a task to the pipeline (repeatable) |
+| `-p <pipeline>` | Add a subpipeline to invoke (repeatable) |
 
 ### List pipelines
 
@@ -260,10 +271,35 @@ bee pipeline run <name>
 ```
 
 Runs the full pipeline. The system automatically:
-1. Builds a dependency graph (DAG) from task `depends_on` fields
-2. Performs topological sort
-3. Groups tasks into layers (parallel groups)
-4. Runs layers sequentially, tasks within a layer run in parallel (separate threads)
+1. Runs all subpipelines first (in order), recursively with cycle detection
+2. Builds a dependency graph (DAG) from task `depends_on` fields
+3. Performs topological sort
+4. Groups tasks into layers (parallel groups)
+5. Runs layers sequentially, tasks within a layer run in parallel (separate threads)
+
+### Subpipelines
+
+A pipeline can invoke other pipelines. When you run it, all subpipelines run first
+(in the order listed), then the pipeline's own tasks run through the normal DAG:
+
+```yaml
+name: full
+tasks:
+  - package
+  - deploy
+pipelines:
+  - build
+  - test
+```
+
+```bash
+bee pipeline create build -t compile
+bee pipeline create full -t package -p build
+bee pipeline run full
+```
+
+Subpipelines run recursively (a subpipeline can itself have subpipelines). Cycles are
+detected automatically, e.g. `build -> ci -> build`.
 
 ### Run all pipelines
 
@@ -287,12 +323,15 @@ tasks:
   - lint
   - package
   - deploy
+pipelines:
+  - build        # optional subpipelines, run before this pipeline's tasks
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | Pipeline name |
 | `tasks` | list[string] | List of task names (order doesn't matter — DAG sorts them) |
+| `pipelines` | list[string] | Optional list of subpipelines invoked before this pipeline's tasks |
 
 ---
 

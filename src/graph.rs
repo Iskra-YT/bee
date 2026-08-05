@@ -13,6 +13,7 @@ pub enum GraphFormat {
 pub fn render_pipeline_graph(name: &str, format: GraphFormat) -> anyhow::Result<String> {
     let content = file::get_file_content(&format!("bee/pipelines/{}.yml", name))?;
     let pipeline = reader::read_pipeline_from_string(&content)?;
+    let subpipelines = pipeline.pipelines.clone();
     let (topo_order, graph) = dag::build_dag(pipeline)?;
 
     let labels: HashMap<_, _> = topo_order.iter().enumerate().map(|(_, &node)| {
@@ -20,9 +21,9 @@ pub fn render_pipeline_graph(name: &str, format: GraphFormat) -> anyhow::Result<
     }).collect();
 
     match format {
-        GraphFormat::Tree => Ok(render_tree(&graph, &topo_order, &labels)),
+        GraphFormat::Tree => Ok(render_tree(&graph, &topo_order, &labels, &subpipelines)),
         GraphFormat::Dot => Ok(render_dot(name, &graph, &topo_order, &labels)),
-        GraphFormat::Mermaid => Ok(render_mermaid(name, &graph, &topo_order, &labels)),
+        GraphFormat::Mermaid => Ok(render_mermaid(name, &graph, &topo_order, &labels, &subpipelines)),
     }
 }
 
@@ -33,6 +34,7 @@ pub fn render_all_pipelines(format: GraphFormat) -> anyhow::Result<String> {
     for pipeline in &pipelines {
         let content = file::get_file_content(&format!("bee/pipelines/{}.yml", pipeline.name))?;
         let pipe = reader::read_pipeline_from_string(&content)?;
+        let subpipelines = pipe.pipelines.clone();
         let (topo_order, graph) = dag::build_dag(pipe)?;
 
         let labels: HashMap<_, _> = topo_order.iter().enumerate().map(|(_, &node)| {
@@ -42,7 +44,7 @@ pub fn render_all_pipelines(format: GraphFormat) -> anyhow::Result<String> {
         match format {
             GraphFormat::Tree => {
                 output.push_str(&format!("Pipeline: {}\n", pipeline.name));
-                output.push_str(&render_tree(&graph, &topo_order, &labels));
+                output.push_str(&render_tree(&graph, &topo_order, &labels, &subpipelines));
                 output.push('\n');
             }
             GraphFormat::Dot => {
@@ -50,7 +52,7 @@ pub fn render_all_pipelines(format: GraphFormat) -> anyhow::Result<String> {
                 output.push('\n');
             }
             GraphFormat::Mermaid => {
-                output.push_str(&render_mermaid(&pipeline.name, &graph, &topo_order, &labels));
+                output.push_str(&render_mermaid(&pipeline.name, &graph, &topo_order, &labels, &subpipelines));
                 output.push('\n');
             }
         }
@@ -63,8 +65,13 @@ fn render_tree(
     graph: &dag::DiGraph<parser::Task, ()>,
     order: &Vec<dag::NodeIndex>,
     labels: &HashMap<dag::NodeIndex, String>,
+    subpipelines: &[String],
 ) -> String {
     let mut output = String::new();
+
+    if !subpipelines.is_empty() {
+        output.push_str(&format!("  Subpipelines: {}\n", subpipelines.join(", ")));
+    }
 
     for &node in order {
         let deps: Vec<String> = graph
@@ -119,13 +126,20 @@ fn render_dot(
 }
 
 fn render_mermaid(
-    _pipeline_name: &str,
+    pipeline_name: &str,
     graph: &dag::DiGraph<parser::Task, ()>,
     order: &Vec<dag::NodeIndex>,
     labels: &HashMap<dag::NodeIndex, String>,
+    subpipelines: &[String],
 ) -> String {
     let mut output = String::new();
     output.push_str("graph LR;\n");
+
+    if !subpipelines.is_empty() {
+        for sub in subpipelines {
+            output.push_str(&format!("  {}[[\"{}\"]]-->\"{} (subpipeline)\";\n", sub, sub, pipeline_name));
+        }
+    }
 
     for &node in order {
         for dep in graph.neighbors_directed(node, petgraph::Direction::Incoming) {

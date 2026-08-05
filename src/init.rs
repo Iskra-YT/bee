@@ -91,6 +91,7 @@ fn run_init_full() -> Result<()> {
     let pipeline_main_config = parser::Pipeline {
         name: String::from("main"),
         tasks: vec![String::from("build"), String::from("test")],
+        pipelines: vec![],
     };
 
     yaml::writer::save_yaml("bee/pipelines/main.yml", &pipeline_main_config)?;
@@ -156,6 +157,7 @@ fn run_init_subsystem(parent: &Path, name: Option<&str>) -> Result<()> {
     let pipeline_main_config = parser::Pipeline {
         name: String::from("main"),
         tasks: vec![String::from("build"), String::from("test")],
+        pipelines: vec![],
     };
 
     yaml::writer::save_yaml("bee/pipelines/main.yml", &pipeline_main_config)?;
@@ -258,11 +260,11 @@ fn register_subsystem(parent: &Path, name: &str, init_proof: &str) -> Result<()>
 }
 
 const BEE_GITIGNORE: &str = r#"cache/
-deps/
-system/backup/
-"#;
+ deps/
+ system/backup/
+ "#;
 
-const BEE_README: &str = r#"# Bee - Task Pipeline Orchestration
+pub const BEE_README: &str = r#"# Bee - Task Pipeline Orchestration
 
 **Bee** is a task pipeline orchestration tool written in Rust. It lets you define tasks, connect them into pipelines with automatic dependency resolution, and run them in parallel or sequentially.
 
@@ -554,32 +556,60 @@ depends_on:
 ### Create a pipeline
 
 ```bash
-bee pipeline create <name> [-t <task>...]
+bee pipeline create <name> [-t <task>...] [-p <pipeline>...]
 ```
 
 | Flag | Description |
 |------|-------------|
 | `-t <task>` | Add a task to the pipeline (repeatable: `-t compile -t test`) |
+| `-p <pipeline>` | Add a subpipeline to invoke (repeatable: `-p build -p deploy`) |
 
 ```bash
 bee pipeline create ci -t compile -t test -t lint -t deploy
+bee pipeline create full -p build -p test -p deploy
 ```
 
 ### Modify a pipeline
 
 ```bash
-bee pipeline modify <name> [--add-task <task>...] [--rm-task <task>...]
+bee pipeline modify <name> [--add-task <task>...] [--rm-task <task>...] [--add-pipeline <pipeline>...] [--rm-pipeline <pipeline>...]
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--add-task <task>` | Add a task (repeatable, skips duplicates) |
 | `--rm-task <task>` | Remove a task (repeatable) |
+| `--add-pipeline <pipeline>` | Add a subpipeline (repeatable, skips duplicates) |
+| `--rm-pipeline <pipeline>` | Remove a subpipeline (repeatable) |
 
 ```bash
 bee pipeline modify ci --add-task package
 bee pipeline modify ci --rm-task deploy
+bee pipeline modify full --add-pipeline lint --rm-pipeline test
 ```
+
+### Subpipelines
+
+A pipeline can invoke other pipelines. When you run it, all subpipelines run first
+(in the order listed), then the pipeline's own tasks run through the normal DAG:
+
+```yaml
+name: full
+tasks:
+  - package
+  - deploy
+pipelines:
+  - build
+  - test
+  - lint
+```
+
+```bash
+bee pipeline run full
+```
+
+Subpipelines run recursively (a subpipeline can itself have subpipelines). Cycles are
+detected automatically and reported, e.g. `build -> ci -> build`.
 
 ### List pipelines
 
@@ -640,7 +670,15 @@ tasks:
   - lint
   - package
   - deploy
+pipelines:
+  - build        # optional subpipelines, run before this pipeline's tasks
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Pipeline name |
+| `tasks` | list[string] | List of task names (order doesn't matter — DAG sorts them) |
+| `pipelines` | list[string] | Optional list of subpipelines invoked before this pipeline's tasks |
 
 ---
 
@@ -1062,7 +1100,7 @@ Each `bee/system/hash/<file>` entry has a companion `bee/system/hash/<file>.bee`
 The system verifies integrity on every operation. If hashes don't match, bee returns "run bee init first".
 "#;
 
-const AGENTS_MD: &str = r#"# AGENTS.md - Instructions for AI Agents
+pub const AGENTS_MD: &str = r#"# AGENTS.md - Instructions for AI Agents
 
 ## IMPORTANT: Always read `bee/README.md` before working with the bee system!
 
@@ -1089,7 +1127,7 @@ Before any operation on the bee system (modifying tasks, pipelines, rules, runni
 ```
 bee/
 ├── tasks/<name>.yml      # Task: name, run, depends_on
-├── pipelines/<name>.yml   # Pipeline: name, tasks
+├── pipelines/<name>.yml   # Pipeline: name, tasks, optional pipelines (subpipelines)
 ├── rules/<name>.yml       # Rule: name, task, triggers
 ├── deps.yml               # Dependencies: dependencies[]
 ├── system/config.yml      # Registry (auto-managed)
@@ -1115,8 +1153,8 @@ bee task list                                    # List tasks
 bee task run <name>                              # Run task
 bee task delete <name>                           # Delete task
 
-bee pipeline create <name> [-t <task>...]        # Create pipeline
-bee pipeline modify <name> [--add/--rm-task]     # Modify pipeline
+bee pipeline create <name> [-t <task>...] [-p <pipeline>...] # Create pipeline
+bee pipeline modify <name> [--add/--rm-task] [--add/--rm-pipeline] # Modify pipeline
 bee pipeline list                                # List pipelines
 bee pipeline run <name>                          # Run pipeline
 bee pipeline delete <name>                       # Delete pipeline
@@ -1143,6 +1181,8 @@ bee sub list                                     # List subsystems (parent or si
 bee sub status                                   # Show subsystem link to parent
 bee sub run <sub> <task>                         # Run a task inside a subsystem
 
+bee docs update                                  # Regenerate bee/*.md docs from built-in templates
+
 # Subsystem-aware trigger types:
 #   subtask_completed/failed/changed: --trigger-param subsystem=<sub> --trigger-param task=<task>
 #   parent_task_completed/failed:     --trigger-param task=<task>
@@ -1150,7 +1190,7 @@ bee sub run <sub> <task>                         # Run a task inside a subsystem
 ```
 "#;
 
-const CLAUDE_MD: &str = r#"# CLAUDE.md
+pub const CLAUDE_MD: &str = r#"# CLAUDE.md
 
 > **This file redirects to the single source of truth.**
 

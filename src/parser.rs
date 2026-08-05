@@ -23,14 +23,17 @@ impl Task {
 #[derive(Serialize)]
 pub struct Pipeline {
     pub name: String,
-    pub tasks: Vec<String>
+    pub tasks: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pipelines: Vec<String>
 }
 
 impl Pipeline {
     pub fn clone (&self) -> Pipeline {
         Pipeline {
             name: self.name.clone(),
-            tasks: self.tasks.clone()
+            tasks: self.tasks.clone(),
+            pipelines: self.pipelines.clone()
         }
     }
 }

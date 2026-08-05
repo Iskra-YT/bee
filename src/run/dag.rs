@@ -10,16 +10,13 @@ pub fn build_dag(config: crate::parser::Pipeline) -> Result<(Vec<NodeIndex>, DiG
     let mut graph = DiGraph::<Task, ()>::new();
     let mut tasks: Vec<Task> = Vec::new();
 
-    config.tasks.iter().for_each(|task_name| {
-        tasks.push(
-            reader::read_task_from_string(
-                &file::get_file_content(&format!("bee/tasks/{}.yml", task_name))
-                    .unwrap_or_default(),
-                task_name,
-            )
-            .unwrap_or_else(|e| panic!("Failed to read task {}: {}", task_name, e)),
-        );
-    });
+    for task_name in &config.tasks {
+        let content = file::get_file_content(&format!("bee/tasks/{}.yml", task_name))
+            .map_err(|e| anyhow::anyhow!("Failed to read task '{}': {}", task_name, e))?;
+        let task = reader::read_task_from_string(&content, task_name)
+            .map_err(|e| anyhow::anyhow!("Failed to read task '{}': {}", task_name, e))?;
+        tasks.push(task);
+    }
 
     let node_indices = tasks
         .iter()

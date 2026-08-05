@@ -54,7 +54,11 @@ pub fn read_pipelines() -> Result<Vec<Pipeline>> {
 
         if let Some(tasks) = pipeline_yaml.get("tasks").and_then(|t| t.as_sequence()) {
             let task_names = tasks.iter().filter_map(|t| t.as_str()).map(|s| s.to_string()).collect();
-            res.push(Pipeline { name: pipeline.name, tasks: task_names });
+            let subpipelines = pipeline_yaml.get("pipelines")
+                .and_then(|p| p.as_sequence())
+                .map(|seq| seq.iter().filter_map(|p| p.as_str()).map(|s| s.to_string()).collect())
+                .unwrap_or_else(|| vec![]);
+            res.push(Pipeline { name: pipeline.name, tasks: task_names, pipelines: subpipelines });
         }
     }
 
@@ -67,11 +71,20 @@ pub fn read_pipeline_from_string(content: &String) -> Result<Pipeline> {
     if let Some(name) = pipeline_yaml.get("name").and_then(|n| n.as_str()) {
         if let Some(tasks) = pipeline_yaml.get("tasks").and_then(|t| t.as_sequence()) {
             let task_names = tasks.iter().filter_map(|t| t.as_str()).map(|s| s.to_string()).collect();
-            return Ok(Pipeline { name: name.to_string(), tasks: task_names });
+            let subpipelines = pipeline_yaml.get("pipelines")
+                .and_then(|p| p.as_sequence())
+                .map(|seq| seq.iter().filter_map(|p| p.as_str()).map(|s| s.to_string()).collect())
+                .unwrap_or_else(|| vec![]);
+            return Ok(Pipeline { name: name.to_string(), tasks: task_names, pipelines: subpipelines });
         }
     }
 
     Err(anyhow::anyhow!("Invalid pipeline YAML format"))
+}
+
+pub fn read_pipeline(name: &str) -> Result<Pipeline> {
+    let pipeline_file = file::get_file_content(&format!("bee/pipelines/{}.yml", name))?;
+    read_pipeline_from_string(&pipeline_file)
 }
 pub fn read_task_from_string(content: &String, name: &String) -> Result<Task> {
     let task_yaml = yaml::reader::parse_yaml_file(content)?;

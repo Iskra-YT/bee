@@ -24,10 +24,11 @@ pub fn create_task(name: &String, depends_on: Vec<String>, run: Option<String>) 
     Ok(())
 }
 
-pub fn create_pipeline(name: &String, tasks: Vec<String>) -> Result<()> {
+pub fn create_pipeline(name: &String, tasks: Vec<String>, pipelines: Vec<String>) -> Result<()> {
     let pipeline_config = parser::Pipeline {
         name: name.clone(),
         tasks,
+        pipelines,
     };
 
     yaml::writer::save_yaml(&format!("bee/pipelines/{}.yml", name), &pipeline_config)?;
