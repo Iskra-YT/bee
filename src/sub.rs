@@ -79,7 +79,7 @@ pub fn resolve_subsystem_dir(name: &str) -> Option<PathBuf> {
     None
 }
 
-pub fn sub_run(subsystem: &str, task: &str) -> Result<()> {
+pub fn sub_run_task(subsystem: &str, task: &str) -> Result<()> {
     let Some(dir) = resolve_subsystem_dir(subsystem) else {
         eprintln!("Error: subsystem '{}' not found", subsystem);
         std::process::exit(1);
@@ -89,6 +89,24 @@ pub fn sub_run(subsystem: &str, task: &str) -> Result<()> {
     let status = std::process::Command::new(&exe)
         .current_dir(&dir)
         .args(["task", "run", task])
+        .status()?;
+
+    if !status.success() {
+        std::process::exit(status.code().unwrap_or(1));
+    }
+    Ok(())
+}
+
+pub fn sub_run_pipeline(subsystem: &str, pipeline: &str) -> Result<()> {
+    let Some(dir) = resolve_subsystem_dir(subsystem) else {
+        eprintln!("Error: subsystem '{}' not found", subsystem);
+        std::process::exit(1);
+    };
+
+    let exe = std::env::current_exe()?;
+    let status = std::process::Command::new(&exe)
+        .current_dir(&dir)
+        .args(["pipeline", "run", pipeline])
         .status()?;
 
     if !status.success() {

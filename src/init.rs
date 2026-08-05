@@ -401,30 +401,31 @@ bee init --name auth    # override subsystem name (default: current directory na
 ### Subsystem commands
 
 Within a subsystem the basic commands operate on the subsystem's own resources:
-`bee task`, `bee pipeline`, `bee rule`, `bee run`, `bee status`, `bee sub`.
+`bee task`, `bee pipeline`, `bee rule`, `bee run`, `bee status`, `bee subsystem`.
 `bee install`, `bee backup`, and `bee graph` are **not available in a subsystem**.
 
 ```bash
-bee sub list    # in a subsystem: shows the parent + sibling subsystems (marks current)
-                # in a parent: lists registered subsystems
-bee sub status  # shows the link to the parent system and registration details
+bee subsystem list    # in a subsystem: shows the parent + sibling subsystems (marks current)
+                      # in a parent: lists registered subsystems
+bee subsystem status  # shows the link to the parent system and registration details
 ```
 
 ### Task connections (parent ↔ subsystem)
 
-A parent task can invoke a task inside a subsystem, and tasks on either side can react to each other through trigger rules.
+A parent task can invoke a task or pipeline inside a subsystem, and tasks on either side can react to each other through trigger rules.
 
-**Parent calls a child task:**
+**Parent calls a child task or pipeline:**
 
 ```bash
-bee sub run <subsystem> <task>   # runs <task> inside <subsystem> from the parent context
+bee subsystem run <subsystem> task <task>
+bee subsystem run <subsystem> pipeline <pipeline>
 ```
 
 Run it from a parent task's `run` command to chain systems, e.g.:
 
 ```yaml
 name: build-all
-run: bee sub run auth build && bee sub run payments build
+run: bee subsystem run auth task build && bee subsystem run payments pipeline build
 ```
 
 **Parent reacts to a subsystem** — create a rule in the parent with one of:
@@ -1120,7 +1121,7 @@ Before any operation on the bee system (modifying tasks, pipelines, rules, runni
 4. **After modifying tasks** consider running `bee clean` to reset trigger states
 5. **Before creating new tasks/pipelines/rules** check existing ones with `bee list`
 7. **Never add new rule/pipeline/task without running command** — this elements won't be visible for bee system
-8. **Subsystems**: running `bee init` in a subfolder of an existing bee project proposes creating a subsystem (own tasks/pipelines/rules linked to the parent). Inspect relationships with `bee sub list` / `bee sub status`. In a subsystem `bee install`, `bee backup`, and `bee graph` are unavailable.
+8. **Subsystems**: running `bee init` in a subfolder of an existing bee project proposes creating a subsystem (own tasks/pipelines/rules linked to the parent). Inspect relationships with `bee subsystem list` / `bee subsystem status`. In a subsystem `bee install`, `bee backup`, and `bee graph` are unavailable.
 
 ## File Structure
 
@@ -1177,9 +1178,10 @@ bee backup create                                # Create backup
 bee backup list                                  # List backups
 bee backup restore <hash>                        # Restore backup
 
-bee sub list                                     # List subsystems (parent or siblings)
-bee sub status                                   # Show subsystem link to parent
-bee sub run <sub> <task>                         # Run a task inside a subsystem
+bee subsystem list                                # List subsystems (parent or siblings)
+bee subsystem status                              # Show subsystem link to parent
+bee subsystem run <sub> task <task>               # Run a task inside a subsystem
+bee subsystem run <sub> pipeline <pipeline>       # Run a pipeline inside a subsystem
 
 bee docs update                                  # Regenerate bee/*.md docs from built-in templates
 

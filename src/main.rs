@@ -149,29 +149,36 @@ fn main() {
             }
         }
 
-        cli::Commands::Sub(sub_args) => {
+        cli::Commands::Subsystem(sub_args) => {
             if !file::check_bee_directory() {
                 eprintln!("Error: run bee init first");
                 return;
             }
 
             match sub_args.command {
-                cli::SubCommand::List => {
+                cli::SubsystemCommand::List => {
                     sub::sub_list().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
-                cli::SubCommand::Status => {
+                cli::SubsystemCommand::Status => {
                     sub::sub_status().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
-                cli::SubCommand::Run { subsystem, task } => {
-                    sub::sub_run(&subsystem, &task).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                cli::SubsystemCommand::Run { subsystem, target } => {
+                    match target {
+                        cli::SubRunTarget::Task { task } => {
+                            sub::sub_run_task(&subsystem, &task).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                        },
+                        cli::SubRunTarget::Pipeline { pipeline } => {
+                            sub::sub_run_pipeline(&subsystem, &pipeline).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                        },
+                    }
                 },
-                cli::SubCommand::Remove { name, delete } => {
+                cli::SubsystemCommand::Remove { name, delete } => {
                     sub::sub_remove(&name, delete).unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
-                cli::SubCommand::Doctor => {
+                cli::SubsystemCommand::Doctor => {
                     sub::sub_doctor().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
-                cli::SubCommand::Deps(deps_args) => {
+                cli::SubsystemCommand::Deps(deps_args) => {
                     match deps_args.command {
                         cli::DepsCommand::List => {
                             sub::sub_deps_list().unwrap_or_else(|e| eprintln!("Error: {}", e));

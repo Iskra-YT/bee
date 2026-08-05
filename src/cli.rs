@@ -66,8 +66,8 @@ pub enum Commands {
     Backup(BackupArgs),
 
     /// Manage bee subsystems
-    #[command(about = "List and inspect bee subsystems linked to a parent system")]
-    Sub(SubArgs),
+    #[command(about = "List, inspect, and invoke bee subsystems linked to a parent system")]
+    Subsystem(SubsystemArgs),
 
     /// Update documentation files inside bee/
     #[command(about = "Regenerate the .md documentation files inside bee/")]
@@ -87,16 +87,33 @@ pub struct InitArgs {
     pub yes: bool,
 }
 
-// ─── Sub ─────────────────────────────────────────────────────────────
+// ─── Subsystem ───────────────────────────────────────────────────────
 
 #[derive(Args)]
-pub struct SubArgs {
+pub struct SubsystemArgs {
     #[command(subcommand)]
-    pub command: SubCommand,
+    pub command: SubsystemCommand,
 }
 
 #[derive(Subcommand)]
-pub enum SubCommand {
+pub enum SubRunTarget {
+    /// Run a task inside the subsystem
+    #[command(about = "Run a task inside the subsystem")]
+    Task {
+        /// Task name to run inside the subsystem
+        task: String,
+    },
+
+    /// Run a pipeline inside the subsystem
+    #[command(about = "Run a pipeline inside the subsystem")]
+    Pipeline {
+        /// Pipeline name to run inside the subsystem
+        pipeline: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SubsystemCommand {
     /// List subsystems
     #[command(about = "List subsystems registered in this project or in the parent system")]
     List,
@@ -105,14 +122,15 @@ pub enum SubCommand {
     #[command(about = "Show subsystem details and its link to the parent system")]
     Status,
 
-    /// Run a task inside a subsystem
-    #[command(about = "Invoke a task in a subsystem from the parent context")]
+    /// Run a task or pipeline inside a subsystem
+    #[command(about = "Invoke a task or pipeline in a subsystem from the parent context")]
     Run {
         /// Subsystem name
         subsystem: String,
 
-        /// Task name to run inside the subsystem
-        task: String,
+        /// What to run inside the subsystem: a task or a pipeline
+        #[command(subcommand)]
+        target: SubRunTarget,
     },
 
     /// Remove a subsystem from the registry
