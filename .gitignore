@@ -23,5 +23,6 @@ target
 # Bee runtime directories
 bee/deps/
 bee/cache/
+bee/logs/
 bee/system/backup/
 bee/system/hash/

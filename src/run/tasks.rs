@@ -322,14 +322,20 @@ pub fn run_task(task: crate::parser::Task) -> anyhow::Result<()> {
     println!("  - {}: running", task.name);
 
     let result = run_command(&task.run);
+    std::fs::create_dir_all("bee/logs")?;
+    let log_path = format!("bee/logs/{}.log", task.name);
 
     match result {
         Ok((stdout, stderr)) => {
-            print!("{}", stdout);
-            eprint!("{}", stderr);
+            let mut log = format!("{}{}", stdout, stderr);
+            if !log.is_empty() && !log.ends_with('\n') {
+                log.push('\n');
+            }
+            std::fs::write(&log_path, log)?;
             mark_task_state(&task.name, "completed");
         }
         Err(e) => {
+            std::fs::write(&log_path, format!("{}\n", e))?;
             mark_task_state(&task.name, "failed");
             return Err(e);
         }
@@ -350,12 +356,15 @@ pub fn run_command(command: &str) -> anyhow::Result<(String, String)> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let code = output.status.code().unwrap_or(-1);
-        let msg = if stderr.trim().is_empty() {
-            format!("exit code {}", code)
-        } else {
-            format!("exit code {}: {}", code, stderr.trim())
-        };
+        let mut msg = format!("exit code {}", code);
+        if !stderr.trim().is_empty() {
+            msg.push_str(&format!(": {}", stderr.trim()));
+        }
+        if !stdout.trim().is_empty() {
+            msg.push_str(&format!("\n[stdout]\n{}", stdout.trim()));
+        }
         return Err(anyhow::anyhow!("{}", msg));
     }
 

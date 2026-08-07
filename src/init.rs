@@ -66,7 +66,7 @@ fn print_parent_chain(parent: &Path) -> Result<()> {
 
 fn run_init_full() -> Result<()> {
     let _ = fs::remove_dir_all("bee");
-    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/deps", "bee/system", "bee/system/hash", "bee/scripts/install"].iter() {
+    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/logs", "bee/deps", "bee/system", "bee/system/hash", "bee/scripts/install"].iter() {
         fs::create_dir_all(dir)?;
     }
 
@@ -132,7 +132,7 @@ fn run_init_full() -> Result<()> {
 
 fn run_init_subsystem(parent: &Path, name: Option<&str>) -> Result<()> {
     let _ = fs::remove_dir_all("bee");
-    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/system", "bee/system/hash"].iter() {
+    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/logs", "bee/system", "bee/system/hash"].iter() {
         fs::create_dir_all(dir)?;
     }
 
@@ -261,6 +261,7 @@ fn register_subsystem(parent: &Path, name: &str, init_proof: &str) -> Result<()>
 
 const BEE_GITIGNORE: &str = r#"cache/
  deps/
+ logs/
  system/backup/
  "#;
 
@@ -284,6 +285,7 @@ pub const BEE_README: &str = r#"# Bee - Task Pipeline Orchestration
 - [Dependency Graph Visualization](#dependency-graph-visualization)
 - [Backup System](#backup-system)
 - [Cache Management](#cache-management)
+- [Task Logs](#task-logs)
 - [Project Status](#project-status)
 - [YAML File Formats](#yaml-file-formats)
 - [Trigger System](#trigger-system)
@@ -348,6 +350,7 @@ bee/
 │   └── main.yml         # default pipeline (build -> test)
 ├── rules/               # (empty)
 ├── cache/               # trigger states and task run history
+├── logs/                # per-task execution logs (<task>.log)
 ├── deps/                # installed dependencies
 ├── scripts/
 │   └── install/         # install scripts for url/git dependencies
@@ -460,6 +463,7 @@ The parent system stores `bee/system/subsystems.yml` (name, path, date, hash) an
 | `pipelines/` | Pipeline definitions (YAML). Each file lists tasks to run in order, respecting the dependency DAG. |
 | `rules/` | Trigger rules (YAML). Defines when tasks should run based on file changes, git state, other tasks, etc. |
 | `cache/` | Runtime cache data. Stores trigger states and task execution history. |
+| `logs/` | Task execution logs. Each task writes its stdout/stderr to `bee/logs/<task>.log` instead of the console. |
 | `deps/` | Installed dependencies. Tools and libraries fetched by `bee install`. |
 | `system/` | Internal metadata. Config registry, integrity hashes, and backup storage. |
 | `system/hash/` | Tamper-detection hashes for config, deps, and init files. |
@@ -913,6 +917,24 @@ bee clean
 ```
 
 Removes the entire `bee/cache/` directory, resetting all trigger states and run history.
+
+---
+
+## Task Logs
+
+When a task runs, its output is **not** printed to the console (task outputs would interleave across parallel threads). Instead, every task writes its stdout/stderr to a log file:
+
+```
+bee/logs/<taskname>.log
+```
+
+The log file is overwritten on each run. On failure the log contains the exit code, stderr, and any stdout produced. The console only shows the task status lines (`running`, `FAILED`, `SKIPPED`, etc.).
+
+```bash
+cat bee/logs/compile.log   # inspect what the compile task output
+```
+
+`bee clean` does not remove `bee/logs/` — delete log files manually if you want to clear them.
 
 ---
 
