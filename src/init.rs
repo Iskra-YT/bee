@@ -1202,15 +1202,15 @@ bee backup restore <hash>                        # Restore backup
 
 bee subsystem list                                # List subsystems (parent or siblings)
 bee subsystem status                              # Show subsystem link to parent
-bee subsystem run <sub> task <task>               # Run a task inside a subsystem
-bee subsystem run <sub> pipeline <pipeline>       # Run a pipeline inside a subsystem
+bee subsystem run <subsystem> task <task>               # Run a task inside a subsystem
+bee subsystem run <subsystem> pipeline <pipeline>       # Run a pipeline inside a subsystem
 
 bee docs update                                  # Regenerate bee/*.md docs from built-in templates
 
 # Subsystem-aware trigger types:
-#   subtask_completed/failed/changed: --trigger-param subsystem=<sub> --trigger-param task=<task>
+#   subtask_completed/failed/changed: --trigger-param subsystem=<subsystem> --trigger-param task=<task>
 #   parent_task_completed/failed:     --trigger-param task=<task>
-#   subsystem_changed:                --trigger-param subsystem=<sub>
+#   subsystem_changed:                --trigger-param subsystem=<subsystem>
 ```
 "#;
 

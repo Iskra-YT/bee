@@ -96,7 +96,7 @@ pub struct SubsystemArgs {
 }
 
 #[derive(Subcommand)]
-pub enum SubRunTarget {
+pub enum SubsystemRunTarget {
     /// Run a task inside the subsystem
     #[command(about = "Run a task inside the subsystem")]
     Task {
@@ -130,7 +130,7 @@ pub enum SubsystemCommand {
 
         /// What to run inside the subsystem: a task or a pipeline
         #[command(subcommand)]
-        target: SubRunTarget,
+        target: SubsystemRunTarget,
     },
 
     /// Remove a subsystem from the registry

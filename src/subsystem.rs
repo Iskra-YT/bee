@@ -79,7 +79,7 @@ pub fn resolve_subsystem_dir(name: &str) -> Option<PathBuf> {
     None
 }
 
-pub fn sub_run_task(subsystem: &str, task: &str) -> Result<()> {
+pub fn subsystem_run_task(subsystem: &str, task: &str) -> Result<()> {
     let Some(dir) = resolve_subsystem_dir(subsystem) else {
         eprintln!("Error: subsystem '{}' not found", subsystem);
         std::process::exit(1);
@@ -97,7 +97,7 @@ pub fn sub_run_task(subsystem: &str, task: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn sub_run_pipeline(subsystem: &str, pipeline: &str) -> Result<()> {
+pub fn subsystem_run_pipeline(subsystem: &str, pipeline: &str) -> Result<()> {
     let Some(dir) = resolve_subsystem_dir(subsystem) else {
         eprintln!("Error: subsystem '{}' not found", subsystem);
         std::process::exit(1);
@@ -115,7 +115,7 @@ pub fn sub_run_pipeline(subsystem: &str, pipeline: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn sub_remove(name: &str, delete: bool) -> Result<()> {
+pub fn subsystem_remove(name: &str, delete: bool) -> Result<()> {
     if !file::check_bee_directory() {
         eprintln!("Error: run bee init first");
         return Ok(());
@@ -149,7 +149,7 @@ pub fn sub_remove(name: &str, delete: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn sub_doctor() -> Result<()> {
+pub fn subsystem_doctor() -> Result<()> {
     if !file::check_bee_directory() {
         eprintln!("Error: run bee init first");
         return Ok(());
@@ -208,12 +208,12 @@ pub fn sub_doctor() -> Result<()> {
     if issues == 0 {
         println!("All subsystems OK");
     } else {
-        println!("Found {} issue(s). Fix with 'bee sub remove <name>' then re-run 'bee init'.", issues);
+        println!("Found {} issue(s). Fix with 'bee subsystem remove <name>' then re-run 'bee init'.", issues);
     }
     Ok(())
 }
 
-pub fn sub_deps_list() -> Result<()> {
+pub fn subsystem_deps_list() -> Result<()> {
     let owner = deps_owner_dir().ok_or_else(|| anyhow!("not inside a subsystem"))?;
     let deps_path = owner.join("bee/system/deps.yml");
     let content = file::get_file_content(&deps_path.to_string_lossy().to_string())?;
@@ -231,7 +231,7 @@ pub fn sub_deps_list() -> Result<()> {
     Ok(())
 }
 
-pub fn sub_deps_path(name: &str) -> Result<()> {
+pub fn subsystem_deps_path(name: &str) -> Result<()> {
     let owner = deps_owner_dir().ok_or_else(|| anyhow!("not inside a subsystem"))?;
     let deps_path = owner.join("bee/system/deps.yml");
     let content = file::get_file_content(&deps_path.to_string_lossy().to_string())?;
@@ -243,7 +243,7 @@ pub fn sub_deps_path(name: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn sub_list() -> Result<()> {
+pub fn subsystem_list() -> Result<()> {
     if let Some((parent_abs, config)) = parent_config()? {
         println!("Subsystems of parent system at '{}':", parent_abs.display());
         if config.subsystems.is_empty() {
@@ -276,7 +276,7 @@ pub fn sub_list() -> Result<()> {
     Ok(())
 }
 
-pub fn sub_status() -> Result<()> {
+pub fn subsystem_status() -> Result<()> {
     if let Some((parent_abs, config)) = parent_config()? {
         println!("Bee subsystem status");
         println!("  Parent system: {}", parent_abs.display());
@@ -306,7 +306,7 @@ pub fn sub_status() -> Result<()> {
     if config.subsystems.is_empty() {
         println!("This project has no subsystems registered");
     } else {
-        println!("This project has {} subsystem(s). Use 'bee sub list' to see them.", config.subsystems.len());
+        println!("This project has {} subsystem(s). Use 'bee subsystem list' to see them.", config.subsystems.len());
     }
     Ok(())
 }

@@ -229,7 +229,7 @@ fn glob_match(pattern: &str, path: &str) -> bool {
 }
 
 fn check_subtask_state(subsystem: &str, task: &str, expected: &str) -> bool {
-    let Some(dir) = crate::sub::resolve_subsystem_dir(subsystem) else {
+    let Some(dir) = crate::subsystem::resolve_subsystem_dir(subsystem) else {
         return false;
     };
     let state = cache::get_state_at(&dir.to_string_lossy(), &format!("task_{}", task));
@@ -247,7 +247,7 @@ fn check_parent_task_state(task: &str, expected: &str) -> bool {
 fn check_subtask_changed(subsystem: &str, task: &str) -> bool {
     let state_key = format!("subtask_{}_{}", subsystem, task);
     let last_state = get_trigger_state(&state_key);
-    let Some(dir) = crate::sub::resolve_subsystem_dir(subsystem) else {
+    let Some(dir) = crate::subsystem::resolve_subsystem_dir(subsystem) else {
         return false;
     };
     let current = cache::get_state_at(&dir.to_string_lossy(), &format!("task_{}", task))
@@ -268,7 +268,7 @@ fn check_subtask_changed(subsystem: &str, task: &str) -> bool {
 fn check_subsystem_changed(subsystem: &str) -> bool {
     let state_key = format!("subsystem_state_{}", subsystem);
     let last_state = get_trigger_state(&state_key);
-    let Some(dir) = crate::sub::resolve_subsystem_dir(subsystem) else {
+    let Some(dir) = crate::subsystem::resolve_subsystem_dir(subsystem) else {
         return false;
     };
     let current = compute_subsystem_state_hash(&dir);
@@ -348,7 +348,7 @@ pub fn run_command(command: &str) -> anyhow::Result<(String, String)> {
     let mut cmd = Command::new("sh");
     cmd.arg("-c").arg(command);
 
-    if let Some(owner) = crate::sub::deps_owner_dir() {
+    if let Some(owner) = crate::subsystem::deps_owner_dir() {
         cmd.env("BEE_DEPS_PATH", owner.join("bee/deps"));
     }
 

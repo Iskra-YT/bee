@@ -16,7 +16,7 @@ mod graph;
 mod status;
 mod install;
 mod update;
-mod sub;
+mod subsystem;
 mod docs;
 
 use clap::Parser;
@@ -149,42 +149,42 @@ fn main() {
             }
         }
 
-        cli::Commands::Subsystem(sub_args) => {
+        cli::Commands::Subsystem(subsystem_args) => {
             if !file::check_bee_directory() {
                 eprintln!("Error: run bee init first");
                 return;
             }
 
-            match sub_args.command {
+            match subsystem_args.command {
                 cli::SubsystemCommand::List => {
-                    sub::sub_list().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    subsystem::subsystem_list().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
                 cli::SubsystemCommand::Status => {
-                    sub::sub_status().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    subsystem::subsystem_status().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
                 cli::SubsystemCommand::Run { subsystem, target } => {
                     match target {
-                        cli::SubRunTarget::Task { task } => {
-                            sub::sub_run_task(&subsystem, &task).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                        cli::SubsystemRunTarget::Task { task } => {
+                            subsystem::subsystem_run_task(&subsystem, &task).unwrap_or_else(|e| eprintln!("Error: {}", e));
                         },
-                        cli::SubRunTarget::Pipeline { pipeline } => {
-                            sub::sub_run_pipeline(&subsystem, &pipeline).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                        cli::SubsystemRunTarget::Pipeline { pipeline } => {
+                            subsystem::subsystem_run_pipeline(&subsystem, &pipeline).unwrap_or_else(|e| eprintln!("Error: {}", e));
                         },
                     }
                 },
                 cli::SubsystemCommand::Remove { name, delete } => {
-                    sub::sub_remove(&name, delete).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    subsystem::subsystem_remove(&name, delete).unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
                 cli::SubsystemCommand::Doctor => {
-                    sub::sub_doctor().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    subsystem::subsystem_doctor().unwrap_or_else(|e| eprintln!("Error: {}", e));
                 },
                 cli::SubsystemCommand::Deps(deps_args) => {
                     match deps_args.command {
                         cli::DepsCommand::List => {
-                            sub::sub_deps_list().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                            subsystem::subsystem_deps_list().unwrap_or_else(|e| eprintln!("Error: {}", e));
                         },
                         cli::DepsCommand::Path { name } => {
-                            sub::sub_deps_path(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                            subsystem::subsystem_deps_path(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
                         },
                     }
                 },
