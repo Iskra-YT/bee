@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, Args};
+use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
@@ -14,7 +14,9 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Initialize bee in the current directory
-    #[command(about = "Initialize bee project structure (proposes a subsystem if a parent bee system is found)")]
+    #[command(
+        about = "Initialize bee project structure (proposes a subsystem if a parent bee system is found)"
+    )]
     Init(InitArgs),
 
     /// Run all pipelines
@@ -79,7 +81,10 @@ pub enum Commands {
 #[derive(Args)]
 pub struct InitArgs {
     /// Subsystem name (default: current directory name)
-    #[arg(long, help = "Name for the subsystem (default: current directory name)")]
+    #[arg(
+        long,
+        help = "Name for the subsystem (default: current directory name)"
+    )]
     pub name: Option<String>,
 
     /// Auto-confirm subsystem creation without prompting
@@ -145,7 +150,9 @@ pub enum SubsystemCommand {
     },
 
     /// Diagnose subsystem registration issues
-    #[command(about = "Check registered subsystems for broken links, missing directories, and hash mismatches")]
+    #[command(
+        about = "Check registered subsystems for broken links, missing directories, and hash mismatches"
+    )]
     Doctor,
 
     /// Inspect dependencies inherited from the parent system (read-only)
@@ -184,7 +191,9 @@ pub struct DocsArgs {
 #[derive(Subcommand)]
 pub enum DocsCommand {
     /// Regenerate the .md documentation files inside bee/
-    #[command(about = "Update bee/README.md, bee/AGENTS.md, and bee/CLAUDE.md from the built-in templates")]
+    #[command(
+        about = "Update bee/README.md, bee/AGENTS.md, and bee/CLAUDE.md from the built-in templates"
+    )]
     Update,
 }
 
@@ -216,8 +225,42 @@ pub enum TaskCommand {
         depends_on: Vec<String>,
 
         /// Shell command to execute (default: echo "Running <name>...")
-        #[arg(short, long, help = "Shell command to run")]
+        #[arg(short, long, help = "Shell command to run (legacy/shell executor)")]
         run: Option<String>,
+
+        /// Executor type: process, shell, script
+        #[arg(
+            long,
+            help = "Executor: process, shell, script (default: legacy when only run is set)"
+        )]
+        executor: Option<String>,
+
+        /// Program to execute (process executor)
+        #[arg(long, help = "Program to execute (process executor)")]
+        program: Option<String>,
+
+        /// Program argument (repeatable)
+        #[arg(
+            long = "arg",
+            help = "Argument for process/script executor (repeatable)"
+        )]
+        args: Vec<String>,
+
+        /// Working directory
+        #[arg(long = "working-dir", help = "Working directory for task execution")]
+        working_dir: Option<String>,
+
+        /// Shell to use (shell executor)
+        #[arg(long, help = "Shell name: bash, sh, powershell, cmd")]
+        shell: Option<String>,
+
+        /// Script interpreter (script executor)
+        #[arg(long, help = "Interpreter for script executor (e.g. python, node)")]
+        interpreter: Option<String>,
+
+        /// Script path (script executor)
+        #[arg(long, help = "Script path for script executor")]
+        script: Option<String>,
     },
 
     /// Modify an existing task
@@ -237,6 +280,37 @@ pub enum TaskCommand {
         /// Replace the run command
         #[arg(short, long, help = "Replace the shell command")]
         run: Option<String>,
+
+        /// Set executor
+        #[arg(long, help = "Set executor: process, shell, script")]
+        executor: Option<String>,
+
+        /// Set program
+        #[arg(long, help = "Set program (process executor)")]
+        program: Option<String>,
+
+        /// Add argument (repeatable)
+        #[arg(
+            long = "arg",
+            help = "Add argument (repeatable; replaces args when provided)"
+        )]
+        args: Vec<String>,
+
+        /// Set working directory
+        #[arg(long = "working-dir", help = "Set working directory")]
+        working_dir: Option<String>,
+
+        /// Set shell
+        #[arg(long, help = "Set shell (shell executor)")]
+        shell: Option<String>,
+
+        /// Set interpreter
+        #[arg(long, help = "Set interpreter (script executor)")]
+        interpreter: Option<String>,
+
+        /// Set script
+        #[arg(long, help = "Set script path (script executor)")]
+        script: Option<String>,
     },
 
     /// Delete a task
@@ -298,7 +372,10 @@ pub enum PipelineCommand {
         rm_tasks: Vec<String>,
 
         /// Add a subpipeline (repeatable, skips duplicates)
-        #[arg(long = "add-pipeline", help = "Add a subpipeline (repeatable, skips duplicates)")]
+        #[arg(
+            long = "add-pipeline",
+            help = "Add a subpipeline (repeatable, skips duplicates)"
+        )]
         add_pipelines: Vec<String>,
 
         /// Remove a subpipeline (repeatable)
@@ -354,11 +431,17 @@ pub enum RuleCommand {
         task: Option<String>,
 
         /// Add a trigger type (see available types below)
-        #[arg(long = "trigger-type", help = "Trigger type: manual, always, file_change, git_changed, task_completed, task_failed, dependency_changed, env_changed, dependency_missing, checksum_changed, schedule, git_tag, subtask_completed, subtask_failed, subtask_changed, parent_task_completed, parent_task_failed, subsystem_changed")]
+        #[arg(
+            long = "trigger-type",
+            help = "Trigger type: manual, always, file_change, git_changed, task_completed, task_failed, dependency_changed, env_changed, dependency_missing, checksum_changed, schedule, git_tag, subtask_completed, subtask_failed, subtask_changed, parent_task_completed, parent_task_failed, subsystem_changed"
+        )]
         trigger_type: Option<String>,
 
         /// Trigger parameters as key=value pairs (repeatable)
-        #[arg(long = "trigger-param", help = "Param for the trigger (repeatable): paths=glob1,glob2 | task=name | subsystem=name | vars=VAR1,VAR2 | path=/file | cron=expr | pattern=regex")]
+        #[arg(
+            long = "trigger-param",
+            help = "Param for the trigger (repeatable): paths=glob1,glob2 | task=name | subsystem=name | vars=VAR1,VAR2 | path=/file | cron=expr | pattern=regex"
+        )]
         trigger_params: Vec<String>,
     },
 
@@ -399,11 +482,19 @@ pub enum InstallCommand {
         name: String,
 
         /// Dependency type: package, url, git, command, or manager
-        #[arg(short, long, help = "Type: package (apt/brew), url (archive download), git (clone repo), command (shell command), manager (package manager in path)")]
+        #[arg(
+            short,
+            long,
+            help = "Type: package (apt/brew), url (archive download), git (clone repo), command (shell command), manager (package manager in path)"
+        )]
         dep_type: String,
 
         /// Source: package name, URL, or git repo URL (not required for command/manager types)
-        #[arg(short, long, help = "Source: package name, download URL, or git repo URL (optional for type=command/manager)")]
+        #[arg(
+            short,
+            long,
+            help = "Source: package name, download URL, or git repo URL (optional for type=command/manager)"
+        )]
         source: Option<String>,
 
         /// Version (optional, for url/git types)
@@ -411,15 +502,26 @@ pub enum InstallCommand {
         version: Option<String>,
 
         /// Shell command to execute (required for type=command, optional for type=package/manager)
-        #[arg(short, long, help = "Shell command (required for type=command, optional for type=manager)")]
+        #[arg(
+            short,
+            long,
+            help = "Shell command (required for type=command, optional for type=manager)"
+        )]
         command: Option<String>,
 
         /// Install script content (optional, for url/git types). Written to deps/<name>/install.sh and executed after download/clone
-        #[arg(long = "install-script", help = "Install script content (written to deps/<name>/install.sh, run after download/clone)")]
+        #[arg(
+            long = "install-script",
+            help = "Install script content (written to deps/<name>/install.sh, run after download/clone)"
+        )]
         install_script: Option<String>,
 
         /// Working directory for manager type (required for type=manager)
-        #[arg(short, long, help = "Working directory path (required for type=manager, e.g. src/frontend)")]
+        #[arg(
+            short,
+            long,
+            help = "Working directory path (required for type=manager, e.g. src/frontend)"
+        )]
         path: Option<String>,
     },
 
@@ -446,7 +548,10 @@ pub enum InstallCommand {
         command: Option<String>,
 
         /// Change the install script content
-        #[arg(long = "install-script", help = "New install script content (written to deps/<name>/install.sh)")]
+        #[arg(
+            long = "install-script",
+            help = "New install script content (written to deps/<name>/install.sh)"
+        )]
         install_script: Option<String>,
 
         /// Change the working directory path (for manager type)
@@ -476,7 +581,10 @@ pub enum GraphCommand {
     #[command(about = "Render dependency graphs for all pipelines")]
     All {
         /// Output format: tree (default), dot, or mermaid
-        #[arg(default_value = "tree", help = "Format: tree (text), dot (GraphViz), mermaid")]
+        #[arg(
+            default_value = "tree",
+            help = "Format: tree (text), dot (GraphViz), mermaid"
+        )]
         format: String,
     },
 
@@ -487,7 +595,10 @@ pub enum GraphCommand {
         name: String,
 
         /// Output format: tree (default), dot, or mermaid
-        #[arg(default_value = "tree", help = "Format: tree (text), dot (GraphViz), mermaid")]
+        #[arg(
+            default_value = "tree",
+            help = "Format: tree (text), dot (GraphViz), mermaid"
+        )]
         format: String,
     },
 }

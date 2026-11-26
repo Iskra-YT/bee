@@ -1,10 +1,10 @@
-use std::fs;
-use anyhow::Result;
-use crate::parser;
-use crate::yaml;
-use crate::hash;
-use crate::time;
 use crate::file;
+use crate::hash;
+use crate::parser;
+use crate::time;
+use crate::yaml;
+use anyhow::Result;
+use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 
@@ -16,7 +16,10 @@ pub fn run_init(name: Option<&str>, yes: bool) -> Result<()> {
 
     if let Some(parent) = file::find_parent_system() {
         let parent_abs = fs::canonicalize(&parent).unwrap_or_else(|_| parent.clone());
-        println!("Detected a parent bee system at '{}'.", parent_abs.display());
+        println!(
+            "Detected a parent bee system at '{}'.",
+            parent_abs.display()
+        );
         print_parent_chain(&parent)?;
 
         if yes {
@@ -53,9 +56,15 @@ fn print_parent_chain(parent: &Path) -> Result<()> {
         };
         println!("  {} bee system: {}{}", label, abs.display(), suffix);
         let link = current.join("bee/system/parent");
-        let Ok(content) = fs::read_to_string(&link) else { break };
+        let Ok(content) = fs::read_to_string(&link) else {
+            break;
+        };
         let up = Path::new(content.trim()).to_path_buf();
-        current = if up.is_absolute() { up } else { current.join(up) };
+        current = if up.is_absolute() {
+            up
+        } else {
+            current.join(up)
+        };
         depth += 1;
         if depth >= 32 {
             break;
@@ -66,14 +75,27 @@ fn print_parent_chain(parent: &Path) -> Result<()> {
 
 fn run_init_full() -> Result<()> {
     let _ = fs::remove_dir_all("bee");
-    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/logs", "bee/deps", "bee/system", "bee/system/hash", "bee/scripts/install"].iter() {
+    for dir in [
+        "bee/tasks",
+        "bee/rules",
+        "bee/pipelines",
+        "bee/cache",
+        "bee/logs",
+        "bee/deps",
+        "bee/system",
+        "bee/system/hash",
+        "bee/scripts/install",
+    ]
+    .iter()
+    {
         fs::create_dir_all(dir)?;
     }
 
     let task_build_config = parser::Task {
         name: String::from("build"),
-        run: String::from("echo \"Building...!\""),
+        run: Some(String::from("echo \"Building...!\"")),
         depends_on: Some(vec![]),
+        ..parser::Task::default()
     };
 
     yaml::writer::save_yaml("bee/tasks/build.yml", &task_build_config)?;
@@ -81,8 +103,9 @@ fn run_init_full() -> Result<()> {
 
     let task_test_config = parser::Task {
         name: String::from("test"),
-        run: String::from("echo \"Testing...!\""),
+        run: Some(String::from("echo \"Testing...!\"")),
         depends_on: Some(vec![String::from("build")]),
+        ..parser::Task::default()
     };
 
     yaml::writer::save_yaml("bee/tasks/test.yml", &task_test_config)?;
@@ -100,7 +123,7 @@ fn run_init_full() -> Result<()> {
     let main_config = parser::MainConfig {
         tasks: vec![String::from("build"), String::from("test")],
         rules: vec![],
-        pipelines: vec![String::from("main")]
+        pipelines: vec![String::from("main")],
     };
 
     yaml::writer::save_yaml("bee/system/config.yml", &main_config)?;
@@ -112,34 +135,51 @@ fn run_init_full() -> Result<()> {
     yaml::writer::save_yaml("bee/system/deps.yml", &deps_config)?;
     println!("  Created system/deps.yml");
 
-    file::write_file_content(&String::from("bee/README.md"), &BEE_README.to_string())?;
+    file::write_file_content(&String::from("bee/README.md"), BEE_README)?;
     println!("  Created bee/README.md");
 
-    file::write_file_content(&String::from("bee/AGENTS.md"), &AGENTS_MD.to_string())?;
+    file::write_file_content(&String::from("bee/AGENTS.md"), AGENTS_MD)?;
     println!("  Created bee/AGENTS.md");
 
-    file::write_file_content(&String::from("bee/CLAUDE.md"), &CLAUDE_MD.to_string())?;
+    file::write_file_content(&String::from("bee/CLAUDE.md"), CLAUDE_MD)?;
     println!("  Created bee/CLAUDE.md");
 
-    file::write_file_content(&String::from("bee/.gitignore"), &BEE_GITIGNORE.to_string())?;
+    file::write_file_content(&String::from("bee/.gitignore"), BEE_GITIGNORE)?;
     println!("  Created bee/.gitignore");
 
     write_init_proof()?;
 
-    println!("Initialization complete. Hash: {}", hash::hash_string(&file::get_file_content(&String::from("bee/system/init"))?).chars().take(8).collect::<String>());
+    println!(
+        "Initialization complete. Hash: {}",
+        hash::hash_string(&file::get_file_content(&String::from("bee/system/init"))?)
+            .chars()
+            .take(8)
+            .collect::<String>()
+    );
     Ok(())
 }
 
 fn run_init_subsystem(parent: &Path, name: Option<&str>) -> Result<()> {
     let _ = fs::remove_dir_all("bee");
-    for dir in ["bee/tasks", "bee/rules", "bee/pipelines", "bee/cache", "bee/logs", "bee/system", "bee/system/hash"].iter() {
+    for dir in [
+        "bee/tasks",
+        "bee/rules",
+        "bee/pipelines",
+        "bee/cache",
+        "bee/logs",
+        "bee/system",
+        "bee/system/hash",
+    ]
+    .iter()
+    {
         fs::create_dir_all(dir)?;
     }
 
     let task_build_config = parser::Task {
         name: String::from("build"),
-        run: String::from("echo \"Building...!\""),
+        run: Some(String::from("echo \"Building...!\"")),
         depends_on: Some(vec![]),
+        ..parser::Task::default()
     };
 
     yaml::writer::save_yaml("bee/tasks/build.yml", &task_build_config)?;
@@ -147,8 +187,9 @@ fn run_init_subsystem(parent: &Path, name: Option<&str>) -> Result<()> {
 
     let task_test_config = parser::Task {
         name: String::from("test"),
-        run: String::from("echo \"Testing...!\""),
+        run: Some(String::from("echo \"Testing...!\"")),
         depends_on: Some(vec![String::from("build")]),
+        ..parser::Task::default()
     };
 
     yaml::writer::save_yaml("bee/tasks/test.yml", &task_test_config)?;
@@ -166,7 +207,7 @@ fn run_init_subsystem(parent: &Path, name: Option<&str>) -> Result<()> {
     let main_config = parser::MainConfig {
         tasks: vec![String::from("build"), String::from("test")],
         rules: vec![],
-        pipelines: vec![String::from("main")]
+        pipelines: vec![String::from("main")],
     };
 
     yaml::writer::save_yaml("bee/system/config.yml", &main_config)?;
@@ -176,7 +217,7 @@ fn run_init_subsystem(parent: &Path, name: Option<&str>) -> Result<()> {
     file::write_file_content(&String::from("bee/system/parent"), &parent_rel)?;
     println!("  Created system/parent -> {}", parent_rel);
 
-    file::write_file_content(&String::from("bee/.gitignore"), &BEE_GITIGNORE.to_string())?;
+    file::write_file_content(&String::from("bee/.gitignore"), BEE_GITIGNORE)?;
     println!("  Created bee/.gitignore");
 
     let init_proof = write_init_proof()?;
@@ -190,7 +231,10 @@ fn run_init_subsystem(parent: &Path, name: Option<&str>) -> Result<()> {
 
     register_subsystem(parent, &subsystem_name, &init_proof)?;
 
-    println!("Subsystem '{}' created and registered in parent.", subsystem_name);
+    println!(
+        "Subsystem '{}' created and registered in parent.",
+        subsystem_name
+    );
     Ok(())
 }
 
@@ -201,7 +245,9 @@ fn write_init_proof() -> Result<String> {
     let init_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/init"))?);
     hash::write_hash_file("bee/system/hash/init", &init_hash)?;
 
-    let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
+    let config_hash = hash::hash_string(&file::get_file_content(&String::from(
+        "bee/system/config.yml",
+    ))?);
     hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
     Ok(init_proof)
@@ -213,7 +259,7 @@ fn register_subsystem(parent: &Path, name: &str, init_proof: &str) -> Result<()>
 
     let subsystems_path = parent_abs.join("bee/system/subsystems.yml");
     let mut config: parser::SubsystemsConfig = if subsystems_path.exists() {
-        let content = file::get_file_content(&subsystems_path.to_string_lossy().to_string())?;
+        let content = file::get_file_content(subsystems_path.to_string_lossy().as_ref())?;
         serde_yaml::from_str(&content).unwrap_or_default()
     } else {
         parser::SubsystemsConfig::default()
@@ -228,7 +274,10 @@ fn register_subsystem(parent: &Path, name: &str, init_proof: &str) -> Result<()>
     if let Some(existing) = config.subsystems.iter().find(|s| s.path == rel_path) {
         let existing_name = existing.name.clone();
         config.subsystems.retain(|s| s.path != rel_path);
-        println!("Re-registering subsystem '{}' at path '{}'.", existing_name, rel_path);
+        println!(
+            "Re-registering subsystem '{}' at path '{}'.",
+            existing_name, rel_path
+        );
     } else if let Some(existing) = config.subsystems.iter().find(|s| s.name == name) {
         let existing_path = existing.path.clone();
         anyhow::bail!(
@@ -246,13 +295,20 @@ fn register_subsystem(parent: &Path, name: &str, init_proof: &str) -> Result<()>
     });
 
     yaml::writer::save_yaml(
-        subsystems_path.to_str().unwrap_or("bee/system/subsystems.yml"),
+        subsystems_path
+            .to_str()
+            .unwrap_or("bee/system/subsystems.yml"),
         &config,
     )?;
 
-    let subsystems_hash = hash::hash_string(&file::get_file_content(&subsystems_path.to_string_lossy().to_string())?);
+    let subsystems_hash = hash::hash_string(&file::get_file_content(
+        subsystems_path.to_string_lossy().as_ref(),
+    )?);
     hash::write_hash_file(
-        &parent_abs.join("bee/system/hash/subsystems").to_string_lossy().to_string(),
+        parent_abs
+            .join("bee/system/hash/subsystems")
+            .to_string_lossy()
+            .as_ref(),
         &subsystems_hash,
     )?;
 
@@ -274,7 +330,6 @@ pub const BEE_README: &str = r#"# Bee - Task Pipeline Orchestration
 ## Table of Contents
 
 - [Building](#building)
-- [Updating](#updating)
 - [Project Initialization](#project-initialization)
 - [Subsystems](#subsystems)
 - [Directory Structure](#directory-structure)
@@ -305,29 +360,21 @@ cargo test           # run tests
 
 The binary is at `target/debug/bee` or `target/release/bee`.
 
-Show the installed bee version (the git commit hash recorded at build/install time):
+The git commit hash of the source is embedded at build time. Show the installed version:
 
 ```bash
 bee version
 ```
 
----
+This prints the `git rev-parse HEAD` hash recorded when the binary was built/installed (e.g. by `bee update`).
 
-## Updating
+### Update project documentation
 
-Update bee to the latest version from GitHub:
+`bee init` also writes `bee/README.md`, `bee/AGENTS.md`, and `bee/CLAUDE.md` inside each project. Regenerate them from the built-in templates with:
 
 ```bash
-sudo bee update
+bee docs update
 ```
-
-This will:
-1. Clone the latest bee source from GitHub to a temporary directory
-2. Build bee in release mode
-3. Replace the currently running binary
-4. Clean up temporary files
-
-> **Note:** Requires `sudo` because the binary is typically installed to `/usr/local/bin/`.
 
 ---
 
@@ -352,18 +399,14 @@ bee/
 ├── cache/               # trigger states and task run history
 ├── logs/                # per-task execution logs (<task>.log)
 ├── deps/                # installed dependencies
-├── scripts/
-│   └── install/         # install scripts for url/git dependencies
 ├── system/
 │   ├── config.yml       # master registry of all tasks/pipelines/rules
-│   ├── deps.yml         # external dependency definitions
 │   ├── init             # initialization proof (hash)
 │   ├── hash/
 │   │   ├── init         # SHA-256 of init file
-│   │   ├── config       # SHA-256 of config.yml
-│   │   └── deps         # SHA-256 of deps.yml
-│   ├── scripts/         # install scripts for url/git dependencies
+│   │   └── config       # SHA-256 of config.yml
 │   └── backup/          # configuration snapshots
+├── deps.yml             # external dependency definitions
 ├── README.md            # this file
 └── .gitignore           # ignores cache/deps/backup/hash
 ```
@@ -466,17 +509,16 @@ The parent system stores `bee/system/subsystems.yml` (name, path, date, hash) an
 | `logs/` | Task execution logs. Each task writes its stdout/stderr to `bee/logs/<task>.log` instead of the console. |
 | `deps/` | Installed dependencies. Tools and libraries fetched by `bee install`. |
 | `system/` | Internal metadata. Config registry, integrity hashes, and backup storage. |
-| `system/hash/` | Tamper-detection hashes for config, deps, and init files. |
-| `scripts/install/` | Install scripts for url/git dependencies (`bee/scripts/install/<name>.sh`). |
+| `system/hash/` | Tamper-detection hashes for config and init files. |
 | `system/backup/` | Backup snapshots of tasks, pipelines, and rules. |
-| `system/deps.yml` | External dependency definitions — install with `bee install`. |
+| `deps.yml` | Project dependencies — define external tools to install with `bee install`. |
 
 ---
 
 ## Key Files
 
 - `system/config.yml` — Master registry of all tasks, pipelines, and rules. Auto-managed by `bee task/pipeline/rule create/delete`. **Do not edit manually.**
-- `system/deps.yml` — Dependency definitions (URL, git, or package manager). Hash-protected like config.yml.
+- `deps.yml` — Dependency definitions (URL, git, or package manager).
 - `README.md` — This file.
 
 ---
@@ -486,37 +528,10 @@ The parent system stores `bee/system/subsystems.yml` (name, path, date, hash) an
 ### Create a task
 
 ```bash
-bee task create <name> [-d <dep>...] [-r <cmd>]
+bee task create <name>
 ```
 
-| Flag | Description |
-|------|-------------|
-| `-d <dep>` | Add a dependency (repeatable: `-d build -d test`) |
-| `-r <cmd>` | Set the run command (default: `echo "Running <name>..."`) |
-
-```bash
-bee task create compile -r "cargo build"
-bee task create test -r "cargo test" -d compile
-bee task create package -r "make dist" -d test -d lint
-```
-
-### Modify a task
-
-```bash
-bee task modify <name> [--add-dep <dep>...] [--rm-dep <dep>...] [-r <cmd>]
-```
-
-| Flag | Description |
-|------|-------------|
-| `--add-dep <dep>` | Add a dependency (repeatable) |
-| `--rm-dep <dep>` | Remove a dependency (repeatable) |
-| `-r <cmd>` | Replace the run command |
-
-```bash
-bee task modify test --add-dep lint
-bee task modify test --rm-dep lint
-bee task modify compile -r "cargo build --release"
-```
+Creates `bee/tasks/<name>.yml` with a default echo command.
 
 ### List tasks
 
@@ -540,19 +555,101 @@ bee task delete <name>
 
 ### Task YAML format
 
+Bee supports three execution modes plus legacy compatibility.
+
+#### Process executor (recommended for ordinary commands)
+
+```yaml
+name: build
+executor: process
+program: cargo
+args:
+  - build
+  - --release
+working_dir: .
+```
+
+#### Shell executor (for shell syntax like `&&`, pipes, redirects)
+
+```yaml
+name: complex-build
+executor: shell
+shell: bash
+run: cargo build && cargo test
+```
+
+#### Script executor (explicit interpreter)
+
+```yaml
+name: generate-report
+executor: script
+interpreter: python
+script: scripts/report.py
+args:
+  - --format
+  - json
+```
+
+#### Legacy format (backward compatible)
+
 ```yaml
 name: compile
-run: cargo build
+run: gcc -o main main.c && echo "Compiled!"
 depends_on:
-  - test
-  - lint
+  - setup
 ```
+
+Tasks without `executor` and with `run` keep the previous shell-based execution semantics for compatibility.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | Task name (must match filename) |
-| `run` | string | Shell command to execute |
-| `depends_on` | list[string] | Optional list of task names this task depends on |
+| `depends_on` | list[string] | Optional task dependencies |
+| `executor` | string | `process`, `shell`, or `script` |
+| `run` | string | Command string for `shell`/legacy tasks |
+| `program` | string | Executable for `process` executor |
+| `args` | list[string] | Arguments for `process`/`script` executors |
+| `working_dir` | string | Working directory (relative to project root or absolute) |
+| `env` | map[string,string] | Environment variables added for the task |
+| `shell` | string | Shell for `shell` executor: `bash`, `sh`, `powershell`, `cmd` |
+| `interpreter` | string | Interpreter for `script` executor (resolved from PATH or path) |
+| `script` | string | Script file for `script` executor |
+| `platforms` | map | Optional per-platform overrides: `linux`, `windows`, `macos` |
+
+#### Platform-specific overrides
+
+```yaml
+name: start-web
+executor: process
+program: npm
+args:
+  - run
+  - dev
+working_dir: web
+platforms:
+  linux:
+    program: npm
+  windows:
+    program: npm.cmd
+  macos:
+    program: npm
+```
+
+Platform overrides are merged over the default task configuration. Supported platform keys are `linux`, `windows`, and `macos`.
+
+#### Windows notes
+
+- Native executables are launched directly with `std::process::Command`.
+- `.cmd` and `.bat` files are executed through `cmd.exe /C` on Windows.
+- Do not assume `.sh` files are directly executable on Windows; use `executor: shell` or an explicit interpreter.
+- Shell execution is platform-aware; do not assume `bash` is available on Windows.
+
+#### Cross-platform behavior
+
+- `process` executor does not use a shell; arguments are passed as a structured list.
+- `shell` executor is opt-in for shell syntax.
+- `script` executor runs an explicit interpreter with a script path.
+- Legacy `run` tasks remain supported.
 
 ---
 
@@ -566,55 +663,8 @@ bee pipeline create <name> [-t <task>...] [-p <pipeline>...]
 
 | Flag | Description |
 |------|-------------|
-| `-t <task>` | Add a task to the pipeline (repeatable: `-t compile -t test`) |
-| `-p <pipeline>` | Add a subpipeline to invoke (repeatable: `-p build -p deploy`) |
-
-```bash
-bee pipeline create ci -t compile -t test -t lint -t deploy
-bee pipeline create full -p build -p test -p deploy
-```
-
-### Modify a pipeline
-
-```bash
-bee pipeline modify <name> [--add-task <task>...] [--rm-task <task>...] [--add-pipeline <pipeline>...] [--rm-pipeline <pipeline>...]
-```
-
-| Flag | Description |
-|------|-------------|
-| `--add-task <task>` | Add a task (repeatable, skips duplicates) |
-| `--rm-task <task>` | Remove a task (repeatable) |
-| `--add-pipeline <pipeline>` | Add a subpipeline (repeatable, skips duplicates) |
-| `--rm-pipeline <pipeline>` | Remove a subpipeline (repeatable) |
-
-```bash
-bee pipeline modify ci --add-task package
-bee pipeline modify ci --rm-task deploy
-bee pipeline modify full --add-pipeline lint --rm-pipeline test
-```
-
-### Subpipelines
-
-A pipeline can invoke other pipelines. When you run it, all subpipelines run first
-(in the order listed), then the pipeline's own tasks run through the normal DAG:
-
-```yaml
-name: full
-tasks:
-  - package
-  - deploy
-pipelines:
-  - build
-  - test
-  - lint
-```
-
-```bash
-bee pipeline run full
-```
-
-Subpipelines run recursively (a subpipeline can itself have subpipelines). Cycles are
-detected automatically and reported, e.g. `build -> ci -> build`.
+| `-t <task>` | Add a task to the pipeline (repeatable) |
+| `-p <pipeline>` | Add a subpipeline to invoke (repeatable) |
 
 ### List pipelines
 
@@ -629,29 +679,35 @@ bee pipeline run <name>
 ```
 
 Runs the full pipeline. The system automatically:
-1. Builds a dependency graph (DAG) from task `depends_on` fields
-2. Performs topological sort
-3. Groups tasks into layers (parallel groups)
-4. Runs layers sequentially, tasks within a layer run in parallel (separate threads)
-5. On failure: only tasks that depend on the failed task are skipped — independent branches continue
-6. Reports exit code, stderr, and color-coded status for each task
+1. Runs all subpipelines first (in order), recursively with cycle detection
+2. Builds a dependency graph (DAG) from task `depends_on` fields
+3. Performs topological sort
+4. Groups tasks into layers (parallel groups)
+5. Runs layers sequentially, tasks within a layer run in parallel (separate threads)
 
-```
-Pipeline: ci (5 tasks, 2 group(s))
-  [1/2] compile, build (parallel)
-  - compile: running
-  - build: running
-build OK
-  - compile: FAILED (exit code 1)
-  [2/2] lint: SKIPPED (dependency failed)
-  [2/2] test: SKIPPED (dependency failed)
-  [2/2] deploy
-  - deploy: running
-deploy OK
+### Subpipelines
 
-Pipeline 'ci' failed: compile
-Skipped: lint, test
+A pipeline can invoke other pipelines. When you run it, all subpipelines run first
+(in the order listed), then the pipeline's own tasks run through the normal DAG:
+
+```yaml
+name: full
+tasks:
+  - package
+  - deploy
+pipelines:
+  - build
+  - test
 ```
+
+```bash
+bee pipeline create build -t compile
+bee pipeline create full -t package -p build
+bee pipeline run full
+```
+
+Subpipelines run recursively (a subpipeline can itself have subpipelines). Cycles are
+detected automatically, e.g. `build -> ci -> build`.
 
 ### Run all pipelines
 
@@ -697,38 +753,6 @@ bee rule create <name> --task <task>
 
 Creates a `manual` rule (only runs when explicitly requested).
 
-### Modify a rule
-
-```bash
-bee rule modify <name> [--task <task>] [--trigger-type <type>] [--trigger-param <key=value>...]
-```
-
-| Flag | Description |
-|------|-------------|
-| `--task <task>` | Change the target task |
-| `--trigger-type <type>` | Add a new trigger |
-| `--trigger-param k=v` | Parameters for the trigger (repeatable) |
-
-**Trigger params by type:**
-
-| Trigger type | Params |
-|-------------|--------|
-| `file_change`, `git_changed`, `checksum_changed` | `paths=glob1,glob2` |
-| `task_completed`, `task_failed`, `dependency_changed` | `task=name` |
-| `env_changed` | `vars=VAR1,VAR2` |
-| `dependency_missing` | `path=/path/to/file` |
-| `schedule` | `cron=0 * * * *` |
-| `git_tag` | `pattern=v1.*` |
-| `subtask_completed`, `subtask_failed`, `subtask_changed` | `subsystem=name`, `task=name` |
-| `parent_task_completed`, `parent_task_failed` | `task=name` |
-| `subsystem_changed` | `subsystem=name` |
-
-```bash
-bee rule modify rebuild --trigger-type file_change --trigger-param "paths=src/**/*.rs,src/**/*.c"
-bee rule modify rebuild --trigger-type task_completed --trigger-param "task=compile"
-bee rule modify rebuild --task test
-```
-
 ### List rules
 
 ```bash
@@ -747,7 +771,6 @@ bee rule delete <name>
 name: rebuild-on-source
 task: compile
 triggers:
-  - type: manual
   - type: file_change
     paths:
       - src/**/*.c
@@ -769,38 +792,13 @@ bee install list
 ### Add a dependency
 
 ```bash
-bee install add <name> --dep-type <type> --source <source> [--version <ver>] [--command <cmd>] [--install-script <script>] [--path <path>]
+bee install add <name> --dep-type <type> --source <source> [--version <ver>] [--command <cmd>]
 ```
 
 Dependency types:
 - `package` — system package (requires `--command`, e.g. `sudo apt-get install -y`)
 - `url` — download from URL (archive)
 - `git` — clone a git repository
-- `command` — run an arbitrary shell command (requires `--command`)
-- `manager` — run a package manager in a specific directory (requires `--path`, optional `--command`, default: `npm install`)
-
-For `url` and `git` types you can provide `--install-script` with a shell script that runs after download/clone. The script is saved to `bee/scripts/install/<name>.sh` and executed with working directory set to `bee/deps/<name>/`.
-
-```bash
-bee install add mytool url https://example.com/tool.tar.gz --install-script 'make && make install'
-bee install add mylib git https://github.com/user/repo --install-script 'cargo build --release'
-bee install add npm-packages --dep-type manager --path src/frontend --command "npm install"
-bee install add pip-deps --dep-type manager --path backend --command "pip install -r requirements.txt"
-```
-
-### Modify a dependency
-
-```bash
-bee install modify <name> [--dep-type <type>] [--source <src>] [--version <ver>] [--command <cmd>] [--install-script <script>] [--path <path>]
-```
-
-```bash
-bee install modify jq --source jq-full
-bee install modify shellcheck --version v0.10.0
-bee install modify mytool --install-script 'make clean && make && make install'
-bee install modify npm-packages --path frontend
-bee install modify pip-deps --command "pip install -r requirements.txt"
-```
 
 ### Install all dependencies
 
@@ -814,7 +812,7 @@ bee install run
 bee install remove <name>
 ```
 
-### system/deps.yml format
+### deps.yml format
 
 ```yaml
 dependencies:
@@ -826,23 +824,7 @@ dependencies:
     type: url
     source: https://github.com/koalaman/shellcheck/releases/download/v0.9.0/shellcheck-v0.9.0.linux.x86_64.tar.xz
     version: v0.9.0
-  - name: mytool
-    type: git
-    source: https://github.com/user/mytool
-    install_script: true
-  - name: npm-packages
-    type: manager
-    path: src/frontend
-    command: npm install
-  - name: pip-deps
-    type: manager
-    path: backend
-    command: pip install -r requirements.txt
 ```
-
-When `install_script: true` is set, bee will run `bee/scripts/install/<name>.sh` after download/clone. The script is executed with working directory `bee/deps/<name>/`.
-
-The `manager` type runs a package manager command inside the specified `path` directory. Use it for project-local dependencies (npm, pip, cargo, etc.).
 
 ---
 
@@ -1060,45 +1042,88 @@ triggers:
 bee init
 ```
 
-### 2. Create tasks (all from CLI)
+### 2. Create tasks
 
 ```bash
-bee task create compile -r "cargo build --release"
-bee task create test -r "cargo test" -d compile
-bee task create lint -r "cargo clippy -- -D warnings" -d compile
-bee task create package -r "tar -czf release.tar.gz target/release/myapp" -d test -d lint
-bee task create deploy -r "scp release.tar.gz user@server:/opt/app/" -d package
+bee task create compile
+bee task create test
+bee task create lint
+bee task create package
+bee task create deploy
 ```
 
-### 3. Modify a task
+### 3. Edit task files
+
+`bee/tasks/compile.yml`:
+```yaml
+name: compile
+run: cargo build --release
+depends_on: []
+```
+
+`bee/tasks/test.yml`:
+```yaml
+name: test
+run: cargo test
+depends_on:
+  - compile
+```
+
+`bee/tasks/lint.yml`:
+```yaml
+name: lint
+run: cargo clippy -- -D warnings
+depends_on:
+  - compile
+```
+
+`bee/tasks/package.yml`:
+```yaml
+name: package
+run: tar -czf release.tar.gz target/release/myapp
+depends_on:
+  - test
+  - lint
+```
+
+`bee/tasks/deploy.yml`:
+```yaml
+name: deploy
+run: scp release.tar.gz user@server:/opt/app/
+depends_on:
+  - package
+```
+
+### 4. Create a pipeline
 
 ```bash
-bee task modify compile -r "cargo build --release --features full"
-bee task modify test --add-dep compile
+bee pipeline create ci
 ```
 
-### 4. Create a pipeline with tasks
-
-```bash
-bee pipeline create ci -t compile -t test -t lint -t package -t deploy
+`bee/pipelines/ci.yml`:
+```yaml
+name: ci
+tasks:
+  - compile
+  - test
+  - lint
+  - package
+  - deploy
 ```
 
-### 5. Modify the pipeline
+### 5. Create rules
 
-```bash
-bee pipeline modify ci --add-task package
-bee pipeline modify ci --rm-task deploy
+`bee/rules/auto-compile.yml`:
+```yaml
+name: auto-compile
+task: compile
+triggers:
+  - type: file_change
+    paths:
+      - src/**/*.rs
 ```
 
-### 6. Create and modify rules
-
-```bash
-bee rule create rebuild --task compile
-bee rule modify rebuild --trigger-type file_change --trigger-param "paths=src/**/*.rs"
-bee rule modify rebuild --trigger-type task_completed --trigger-param "task=compile"
-```
-
-### 7. Run
+### 6. Run
 
 ```bash
 bee pipeline run ci    # Run the full pipeline
@@ -1118,7 +1143,7 @@ Bee stores SHA-256 hashes:
 - `bee/system/hash/deps` — hash of deps.yml
 - `bee/system/hash/subsystems` — hash of the parent's subsystems registry
 
-Each `bee/system/hash/<file>` entry has a companion `bee/system/hash/<file>.bee` containing the bee git hash (`bee version`) that created it.
+Each `bee/system/hash/<file>` entry has a companion `bee/system/hash/<file>.bee` containing the bee git hash (`bee version`) that created it, so future versions can tell which bee build produced each hash.
 
 The system verifies integrity on every operation. If hashes don't match, bee returns "run bee init first".
 "#;

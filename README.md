@@ -232,6 +232,43 @@ bee task delete <name>
 
 ### Task YAML format
 
+Bee supports three execution modes plus legacy compatibility.
+
+#### Process executor (recommended for ordinary commands)
+
+```yaml
+name: build
+executor: process
+program: cargo
+args:
+  - build
+  - --release
+working_dir: .
+```
+
+#### Shell executor (for shell syntax like `&&`, pipes, redirects)
+
+```yaml
+name: complex-build
+executor: shell
+shell: bash
+run: cargo build && cargo test
+```
+
+#### Script executor (explicit interpreter)
+
+```yaml
+name: generate-report
+executor: script
+interpreter: python
+script: scripts/report.py
+args:
+  - --format
+  - json
+```
+
+#### Legacy format (backward compatible)
+
 ```yaml
 name: compile
 run: gcc -o main main.c && echo "Compiled!"
@@ -239,13 +276,57 @@ depends_on:
   - setup
 ```
 
+Tasks without `executor` and with `run` keep the previous shell-based execution semantics for compatibility.
+
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | Task name (must match filename) |
-| `run` | string | Shell command to execute |
-| `depends_on` | list[string] | Optional list of task names this task depends on |
+| `depends_on` | list[string] | Optional task dependencies |
+| `executor` | string | `process`, `shell`, or `script` |
+| `run` | string | Command string for `shell`/legacy tasks |
+| `program` | string | Executable for `process` executor |
+| `args` | list[string] | Arguments for `process`/`script` executors |
+| `working_dir` | string | Working directory (relative to project root or absolute) |
+| `env` | map[string,string] | Environment variables added for the task |
+| `shell` | string | Shell for `shell` executor: `bash`, `sh`, `powershell`, `cmd` |
+| `interpreter` | string | Interpreter for `script` executor (resolved from PATH or path) |
+| `script` | string | Script file for `script` executor |
+| `platforms` | map | Optional per-platform overrides: `linux`, `windows`, `macos` |
 
-Tasks without `depends_on` or with an empty list have no dependencies and run first.
+#### Platform-specific overrides
+
+```yaml
+name: start-web
+executor: process
+program: npm
+args:
+  - run
+  - dev
+working_dir: web
+platforms:
+  linux:
+    program: npm
+  windows:
+    program: npm.cmd
+  macos:
+    program: npm
+```
+
+Platform overrides are merged over the default task configuration. Supported platform keys are `linux`, `windows`, and `macos`.
+
+#### Windows notes
+
+- Native executables are launched directly with `std::process::Command`.
+- `.cmd` and `.bat` files are executed through `cmd.exe /C` on Windows.
+- Do not assume `.sh` files are directly executable on Windows; use `executor: shell` or an explicit interpreter.
+- Shell execution is platform-aware; do not assume `bash` is available on Windows.
+
+#### Cross-platform behavior
+
+- `process` executor does not use a shell; arguments are passed as a structured list.
+- `shell` executor is opt-in for shell syntax.
+- `script` executor runs an explicit interpreter with a script path.
+- Legacy `run` tasks remain supported.
 
 ---
 

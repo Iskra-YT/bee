@@ -1,4 +1,6 @@
-use crate::parser::{Dependency, DepsConfig, Pipeline, PipelineConfig, Rule, RuleConfig, Task, TaskConfig};
+use crate::parser::{
+    Dependency, DepsConfig, Pipeline, PipelineConfig, Rule, RuleConfig, Task, TaskConfig,
+};
 use crate::{file, yaml};
 use anyhow::Result;
 
@@ -10,10 +12,12 @@ pub fn read_pipelines_config() -> Result<Vec<PipelineConfig>> {
         .map(|seq| {
             seq.iter()
                 .filter_map(|item| item.as_str())
-                .map(|name| PipelineConfig { name: name.to_string() })
+                .map(|name| PipelineConfig {
+                    name: name.to_string(),
+                })
                 .collect()
         })
-        .unwrap_or_else(|| vec![]))
+        .unwrap_or_else(std::vec::Vec::new))
 }
 
 pub fn read_tasks_config() -> Result<Vec<TaskConfig>> {
@@ -24,10 +28,12 @@ pub fn read_tasks_config() -> Result<Vec<TaskConfig>> {
         .map(|seq| {
             seq.iter()
                 .filter_map(|item| item.as_str())
-                .map(|name| TaskConfig { name: name.to_string() })
+                .map(|name| TaskConfig {
+                    name: name.to_string(),
+                })
                 .collect()
         })
-        .unwrap_or_else(|| vec![]))
+        .unwrap_or_else(std::vec::Vec::new))
 }
 
 pub fn read_rules_config() -> Result<Vec<RuleConfig>> {
@@ -38,10 +44,12 @@ pub fn read_rules_config() -> Result<Vec<RuleConfig>> {
         .map(|seq| {
             seq.iter()
                 .filter_map(|item| item.as_str())
-                .map(|name| RuleConfig { name: name.to_string() })
+                .map(|name| RuleConfig {
+                    name: name.to_string(),
+                })
                 .collect()
         })
-        .unwrap_or_else(|| vec![]))
+        .unwrap_or_else(std::vec::Vec::new))
 }
 
 pub fn read_pipelines() -> Result<Vec<Pipeline>> {
@@ -49,33 +57,62 @@ pub fn read_pipelines() -> Result<Vec<Pipeline>> {
     let mut res: Vec<Pipeline> = vec![];
 
     for pipeline in pipelines {
-        let pipeline_file = file::get_file_content(&format!("bee/pipelines/{}.yml", pipeline.name))?;
+        let pipeline_file =
+            file::get_file_content(&format!("bee/pipelines/{}.yml", pipeline.name))?;
         let pipeline_yaml = yaml::reader::parse_yaml_file(&pipeline_file)?;
 
         if let Some(tasks) = pipeline_yaml.get("tasks").and_then(|t| t.as_sequence()) {
-            let task_names = tasks.iter().filter_map(|t| t.as_str()).map(|s| s.to_string()).collect();
-            let subpipelines = pipeline_yaml.get("pipelines")
+            let task_names = tasks
+                .iter()
+                .filter_map(|t| t.as_str())
+                .map(|s| s.to_string())
+                .collect();
+            let subpipelines = pipeline_yaml
+                .get("pipelines")
                 .and_then(|p| p.as_sequence())
-                .map(|seq| seq.iter().filter_map(|p| p.as_str()).map(|s| s.to_string()).collect())
-                .unwrap_or_else(|| vec![]);
-            res.push(Pipeline { name: pipeline.name, tasks: task_names, pipelines: subpipelines });
+                .map(|seq| {
+                    seq.iter()
+                        .filter_map(|p| p.as_str())
+                        .map(|s| s.to_string())
+                        .collect()
+                })
+                .unwrap_or_else(std::vec::Vec::new);
+            res.push(Pipeline {
+                name: pipeline.name,
+                tasks: task_names,
+                pipelines: subpipelines,
+            });
         }
     }
 
     Ok(res)
 }
 
-pub fn read_pipeline_from_string(content: &String) -> Result<Pipeline> {
+pub fn read_pipeline_from_string(content: &str) -> Result<Pipeline> {
     let pipeline_yaml = yaml::reader::parse_yaml_file(content)?;
 
     if let Some(name) = pipeline_yaml.get("name").and_then(|n| n.as_str()) {
         if let Some(tasks) = pipeline_yaml.get("tasks").and_then(|t| t.as_sequence()) {
-            let task_names = tasks.iter().filter_map(|t| t.as_str()).map(|s| s.to_string()).collect();
-            let subpipelines = pipeline_yaml.get("pipelines")
+            let task_names = tasks
+                .iter()
+                .filter_map(|t| t.as_str())
+                .map(|s| s.to_string())
+                .collect();
+            let subpipelines = pipeline_yaml
+                .get("pipelines")
                 .and_then(|p| p.as_sequence())
-                .map(|seq| seq.iter().filter_map(|p| p.as_str()).map(|s| s.to_string()).collect())
-                .unwrap_or_else(|| vec![]);
-            return Ok(Pipeline { name: name.to_string(), tasks: task_names, pipelines: subpipelines });
+                .map(|seq| {
+                    seq.iter()
+                        .filter_map(|p| p.as_str())
+                        .map(|s| s.to_string())
+                        .collect()
+                })
+                .unwrap_or_else(std::vec::Vec::new);
+            return Ok(Pipeline {
+                name: name.to_string(),
+                tasks: task_names,
+                pipelines: subpipelines,
+            });
         }
     }
 
@@ -86,26 +123,18 @@ pub fn read_pipeline(name: &str) -> Result<Pipeline> {
     let pipeline_file = file::get_file_content(&format!("bee/pipelines/{}.yml", name))?;
     read_pipeline_from_string(&pipeline_file)
 }
-pub fn read_task_from_string(content: &String, name: &String) -> Result<Task> {
-    let task_yaml = yaml::reader::parse_yaml_file(content)?;
-
-    if let Some(run) = task_yaml.get("run").and_then(|r| r.as_str()) {
-        let depends_on = task_yaml.get("depends_on")
-            .and_then(|d| d.as_sequence())
-            .map(|seq| seq.iter().filter_map(|t| t.as_str()).map(|s| s.to_string()).collect())
-            .unwrap_or_else(|| vec![]);
-
-        return Ok(Task { 
-            name: name.clone(), 
-            run: run.to_string(), 
-            depends_on: Some(depends_on)
-        });
+pub fn read_task_from_string(content: &str, name: &str) -> Result<Task> {
+    let mut task: Task = serde_yaml::from_str(content)
+        .map_err(|e| anyhow::anyhow!("Failed to parse task '{}': {}", name, e))?;
+    if task.name.is_empty() {
+        task.name = name.to_string();
     }
-
-    Err(anyhow::anyhow!("Invalid task YAML format"))
+    task.validate()
+        .map_err(|e| anyhow::anyhow!("Invalid task '{}': {}", name, e))?;
+    Ok(task)
 }
 
-pub fn read_rules_from_string(content: &String) -> Result<Rule> {
+pub fn read_rules_from_string(content: &str) -> Result<Rule> {
     if let Ok(rule) = serde_yaml::from_str::<Rule>(content) {
         return Ok(rule);
     }

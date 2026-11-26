@@ -1,14 +1,12 @@
-use std::process::Command;
-use crate::parser::{Rule, RuleTrigger};
 use crate::parser::reader::config as reader;
+use crate::parser::{Rule, RuleTrigger};
 use crate::run::cache;
+use std::process::Command;
 
 pub fn should_run(task_name: &str) -> bool {
     let rules = reader::read_rules().unwrap_or_else(|_| vec![]);
 
-    let task_rules: Vec<&Rule> = rules.iter()
-        .filter(|r| r.task == task_name)
-        .collect();
+    let task_rules: Vec<&Rule> = rules.iter().filter(|r| r.task == task_name).collect();
 
     if task_rules.is_empty() {
         return true;
@@ -43,45 +41,25 @@ fn evaluate_trigger(trigger: &RuleTrigger, task_name: &str) -> bool {
 
         RuleTrigger::Always => true,
 
-        RuleTrigger::FileChange { paths } => {
-            check_file_changes(paths, task_name)
-        }
+        RuleTrigger::FileChange { paths } => check_file_changes(paths, task_name),
 
-        RuleTrigger::GitChanged { paths } => {
-            check_git_changes(paths)
-        }
+        RuleTrigger::GitChanged { paths } => check_git_changes(paths),
 
-        RuleTrigger::TaskCompleted { task } => {
-            check_task_completed(task)
-        }
+        RuleTrigger::TaskCompleted { task } => check_task_completed(task),
 
-        RuleTrigger::TaskFailed { task } => {
-            check_task_failed(task)
-        }
+        RuleTrigger::TaskFailed { task } => check_task_failed(task),
 
-        RuleTrigger::DependencyChanged { task } => {
-            check_task_completed(task)
-        }
+        RuleTrigger::DependencyChanged { task } => check_task_completed(task),
 
-        RuleTrigger::DependencyMissing { path } => {
-            !std::path::Path::new(path).exists()
-        }
+        RuleTrigger::DependencyMissing { path } => !std::path::Path::new(path).exists(),
 
-        RuleTrigger::EnvChanged { vars } => {
-            check_env_changed(vars, task_name)
-        }
+        RuleTrigger::EnvChanged { vars } => check_env_changed(vars, task_name),
 
-        RuleTrigger::Schedule { cron: _ } => {
-            true
-        }
+        RuleTrigger::Schedule { cron: _ } => true,
 
-        RuleTrigger::GitTag { pattern: _ } => {
-            check_git_tag()
-        }
+        RuleTrigger::GitTag { pattern: _ } => check_git_tag(),
 
-        RuleTrigger::ChecksumChanged { paths } => {
-            check_checksum_changed(paths, task_name)
-        }
+        RuleTrigger::ChecksumChanged { paths } => check_checksum_changed(paths, task_name),
 
         RuleTrigger::SubtaskCompleted { subsystem, task } => {
             check_subtask_state(subsystem, task, "completed")
@@ -91,26 +69,22 @@ fn evaluate_trigger(trigger: &RuleTrigger, task_name: &str) -> bool {
             check_subtask_state(subsystem, task, "failed")
         }
 
-        RuleTrigger::SubtaskChanged { subsystem, task } => {
-            check_subtask_changed(subsystem, task)
-        }
+        RuleTrigger::SubtaskChanged { subsystem, task } => check_subtask_changed(subsystem, task),
 
-        RuleTrigger::ParentTaskCompleted { task } => {
-            check_parent_task_state(task, "completed")
-        }
+        RuleTrigger::ParentTaskCompleted { task } => check_parent_task_state(task, "completed"),
 
-        RuleTrigger::ParentTaskFailed { task } => {
-            check_parent_task_state(task, "failed")
-        }
+        RuleTrigger::ParentTaskFailed { task } => check_parent_task_state(task, "failed"),
 
-        RuleTrigger::SubsystemChanged { subsystem } => {
-            check_subsystem_changed(subsystem)
-        }
+        RuleTrigger::SubsystemChanged { subsystem } => check_subsystem_changed(subsystem),
     }
 }
 
 fn check_file_changes(paths: &[String], task_name: &str) -> bool {
-    let state_key = format!("file_change_{}_{}", task_name, crate::hash::hash_string(&paths.join("|")));
+    let state_key = format!(
+        "file_change_{}_{}",
+        task_name,
+        crate::hash::hash_string(&paths.join("|"))
+    );
     let last_hash = get_trigger_state(&state_key);
     let current_hash = compute_files_hash(paths);
 
@@ -143,7 +117,7 @@ fn check_git_changes(paths: &[String]) -> bool {
             }
             false
         }
-        _ => true
+        _ => true,
     }
 }
 
@@ -158,10 +132,15 @@ fn check_task_failed(task: &str) -> bool {
 }
 
 fn check_env_changed(vars: &[String], task_name: &str) -> bool {
-    let state_key = format!("env_{}_{}", task_name, crate::hash::hash_string(&vars.join("|")));
+    let state_key = format!(
+        "env_{}_{}",
+        task_name,
+        crate::hash::hash_string(&vars.join("|"))
+    );
     let last_state = get_trigger_state(&state_key);
 
-    let current_state: Vec<String> = vars.iter()
+    let current_state: Vec<String> = vars
+        .iter()
         .filter_map(|var| std::env::var(var).ok())
         .collect();
 
@@ -188,7 +167,11 @@ fn check_git_tag() -> bool {
 }
 
 fn check_checksum_changed(paths: &[String], task_name: &str) -> bool {
-    let state_key = format!("checksum_{}_{}", task_name, crate::hash::hash_string(&paths.join("|")));
+    let state_key = format!(
+        "checksum_{}_{}",
+        task_name,
+        crate::hash::hash_string(&paths.join("|"))
+    );
     let last_hash = get_trigger_state(&state_key);
 
     let current_hash = compute_files_hash(paths);
@@ -224,7 +207,9 @@ fn compute_files_hash(paths: &[String]) -> String {
 fn glob_match(pattern: &str, path: &str) -> bool {
     glob::glob(pattern)
         .ok()
-        .map(|mut entries| entries.any(|e| e.map(|p| p == std::path::Path::new(path)).unwrap_or(false)))
+        .map(|mut entries| {
+            entries.any(|e| e.map(|p| p == std::path::Path::new(path)).unwrap_or(false))
+        })
         .unwrap_or(false)
 }
 
@@ -321,52 +306,43 @@ pub fn run_task(task: crate::parser::Task) -> anyhow::Result<()> {
 
     println!("  - {}: running", task.name);
 
-    let result = run_command(&task.run);
+    let result = crate::execution::execute_task(&task);
     std::fs::create_dir_all("bee/logs")?;
     let log_path = format!("bee/logs/{}.log", task.name);
 
     match result {
-        Ok((stdout, stderr)) => {
-            let mut log = format!("{}{}", stdout, stderr);
-            if !log.is_empty() && !log.ends_with('\n') {
-                log.push('\n');
+        Ok(exec_result) => {
+            if exec_result.success {
+                let mut log = format!("{}{}", exec_result.stdout, exec_result.stderr);
+                if !log.is_empty() && !log.ends_with('\n') {
+                    log.push('\n');
+                }
+                std::fs::write(&log_path, log)?;
+                mark_task_state(&task.name, "completed");
+                Ok(())
+            } else {
+                let msg = format_failed_execution(&exec_result);
+                std::fs::write(&log_path, format!("{}\n", msg))?;
+                mark_task_state(&task.name, "failed");
+                Err(anyhow::anyhow!("{}", msg))
             }
-            std::fs::write(&log_path, log)?;
-            mark_task_state(&task.name, "completed");
         }
         Err(e) => {
-            std::fs::write(&log_path, format!("{}\n", e))?;
+            let msg = e.to_string();
+            std::fs::write(&log_path, format!("{}\n", msg))?;
             mark_task_state(&task.name, "failed");
-            return Err(e);
+            Err(anyhow::anyhow!("{}", msg))
         }
     }
-
-    Ok(())
 }
 
-pub fn run_command(command: &str) -> anyhow::Result<(String, String)> {
-    let mut cmd = Command::new("sh");
-    cmd.arg("-c").arg(command);
-
-    if let Some(owner) = crate::subsystem::deps_owner_dir() {
-        cmd.env("BEE_DEPS_PATH", owner.join("bee/deps"));
+fn format_failed_execution(result: &crate::execution::ExecutionResult) -> String {
+    let mut msg = format!("exit code {}", result.exit_code);
+    if !result.stderr.trim().is_empty() {
+        msg.push_str(&format!(": {}", result.stderr.trim()));
     }
-
-    let output = cmd.output()?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let code = output.status.code().unwrap_or(-1);
-        let mut msg = format!("exit code {}", code);
-        if !stderr.trim().is_empty() {
-            msg.push_str(&format!(": {}", stderr.trim()));
-        }
-        if !stdout.trim().is_empty() {
-            msg.push_str(&format!("\n[stdout]\n{}", stdout.trim()));
-        }
-        return Err(anyhow::anyhow!("{}", msg));
+    if !result.stdout.trim().is_empty() {
+        msg.push_str(&format!("\n[stdout]\n{}", result.stdout.trim()));
     }
-
-    Ok((String::from_utf8_lossy(&output.stdout).to_string(), String::from_utf8_lossy(&output.stderr).to_string()))
+    msg
 }
