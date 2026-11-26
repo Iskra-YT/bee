@@ -1146,6 +1146,103 @@ Bee stores SHA-256 hashes:
 Each `bee/system/hash/<file>` entry has a companion `bee/system/hash/<file>.bee` containing the bee git hash (`bee version`) that created it, so future versions can tell which bee build produced each hash.
 
 The system verifies integrity on every operation. If hashes don't match, bee returns "run bee init first".
+
+---
+
+## Automated Releases (GitHub Actions)
+
+Bee uses `.github/workflows/release.yml` to build and publish precompiled binaries.
+
+### Release conditions
+
+A new release is created only when **both** conditions are true:
+
+1. The current Git commit SHA differs from the commit SHA used for the last published Bee release.
+2. At least one **calendar month** has passed since the last published Bee release (not 30 days).
+
+If either condition is not met, the workflow finishes successfully with a **pass** result, does not build binaries, and does not create a release. The workflow logs clearly explain which condition was not satisfied.
+
+If no previous published Bee release exists, the initial release is allowed when a valid commit SHA can be identified.
+
+### Triggers
+
+- **Schedule**: runs automatically once per day.
+- **Manual**: run via GitHub Actions `workflow_dispatch` on the repository.
+
+### Versioning
+
+Releases use the full 40-character Git commit SHA:
+
+- Tag: `bee-<full-commit-sha>`
+- Release name: `Bee <full-commit-sha>`
+
+The release points to the exact commit that was built.
+
+### Supported platforms
+
+| Platform | Architecture | Rust target | Archive |
+|---|---|---|---|
+| macOS | x64 | `x86_64-apple-darwin` | `.tar.gz` |
+| macOS | ARM64 | `aarch64-apple-darwin` | `.tar.gz` |
+| Linux | x64 | `x86_64-unknown-linux-gnu` | `.tar.gz` |
+| Linux | ARM64 | `aarch64-unknown-linux-gnu` | `.tar.gz` |
+| Windows | x64 | `x86_64-pc-windows-msvc` | `.zip` |
+| FreeBSD | x64 | `x86_64-unknown-freebsd` | `.tar.gz` |
+
+### Artifact naming
+
+Artifacts are named:
+
+- `bee-<full-commit-sha>-macos-x64.tar.gz`
+- `bee-<full-commit-sha>-macos-arm64.tar.gz`
+- `bee-<full-commit-sha>-linux-x64.tar.gz`
+- `bee-<full-commit-sha>-linux-arm64.tar.gz`
+- `bee-<full-commit-sha>-windows-x64.zip`
+- `bee-<full-commit-sha>-freebsd-x64.tar.gz`
+
+Each archive contains the `bee` executable (`bee.exe` on Windows) and a small `README.txt` with platform, target, commit SHA, and build date. A `SHA256SUMS` file is attached to the release.
+
+### Verify checksums
+
+After downloading an archive and `SHA256SUMS`:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+On macOS:
+
+```bash
+shasum -a 256 -c SHA256SUMS --ignore-missing
+```
+
+### Failure behavior
+
+- GitHub API errors are treated as workflow errors, not as unmet release conditions.
+- If any target fails to build or its artifact is missing, the release is not published.
+- The workflow does not overwrite an existing release for the same tag.
+
+## Updating Bee
+
+`bee update` downloads the latest published Bee release from GitHub Releases instead of compiling from source.
+
+```bash
+bee update
+```
+
+What it does:
+- Detects your platform and architecture.
+- Finds the latest published release tagged `bee-<full-commit-sha>`.
+- Downloads the matching release artifact and `SHA256SUMS`.
+- Verifies the SHA-256 checksum when `SHA256SUMS` is available.
+- Replaces the current `bee` executable in place.
+
+Requirements:
+- `curl` must be available for API/download requests.
+- `tar` is required for `.tar.gz` archives; `unzip` for `.zip` archives.
+- The current platform must be one of the supported release targets.
+
+If no matching published Bee release or platform artifact is found, the command fails with an explicit error.
 "#;
 
 pub const AGENTS_MD: &str = r#"# AGENTS.md - Instructions for AI Agents
