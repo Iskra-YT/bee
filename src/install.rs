@@ -177,10 +177,11 @@ pub fn add_dep(
         let script_path = format!("bee/scripts/install/{}.sh", name);
         fs::create_dir_all("bee/scripts/install")?;
         file::write_file_content(&script_path, script)?;
-        fs::set_permissions(
-            &script_path,
-            std::os::unix::fs::PermissionsExt::from_mode(0o755),
-        )?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))?;
+        }
     }
 
     let new_dep = Dependency {

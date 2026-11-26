@@ -332,10 +332,11 @@ pub fn modify_dep(
         let script_path = format!("bee/scripts/install/{}.sh", name);
         std::fs::create_dir_all("bee/scripts/install")?;
         file::write_file_content(&script_path, s)?;
-        std::fs::set_permissions(
-            &script_path,
-            std::os::unix::fs::PermissionsExt::from_mode(0o755),
-        )?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
+        }
     }
     if let Some(p) = path {
         mapping.insert(Value::String("path".into()), Value::String(p.to_owned()));
