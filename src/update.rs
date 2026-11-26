@@ -44,7 +44,11 @@ pub fn run_update() -> Result<()> {
     fs::create_dir_all(&extract_dir)?;
     extract_archive(&archive_path, &extract_dir, platform.ext)?;
 
-    let binary_name = if platform.is_windows { "bee.exe" } else { "bee" };
+    let binary_name = if platform.is_windows {
+        "bee.exe"
+    } else {
+        "bee"
+    };
     let extracted_binary = find_extracted_binary(&extract_dir, binary_name)?;
     install_binary(&extracted_binary, &current_exe)?;
 
@@ -93,7 +97,10 @@ fn detect_platform() -> Result<Platform> {
 fn fetch_latest_bee_release() -> Result<json::JsonValue> {
     let mut page = 1u32;
     loop {
-        let url = format!("{}/repos/{}/releases?per_page=100&page={}", API_BASE, REPO, page);
+        let url = format!(
+            "{}/repos/{}/releases?per_page=100&page={}",
+            API_BASE, REPO, page
+        );
         let body = curl_get(&url)?;
         let parsed = json::parse(&body)
             .map_err(|e| anyhow!("Failed to parse GitHub releases response: {}", e))?;
@@ -161,7 +168,13 @@ fn find_asset_url(release: &json::JsonValue, name: &str) -> Result<String> {
 
 fn curl_get(url: &str) -> Result<String> {
     let mut cmd = Command::new("curl");
-    cmd.args(["-fsSL", "-H", "Accept: application/vnd.github+json", "-H", "User-Agent: bee-updater"]);
+    cmd.args([
+        "-fsSL",
+        "-H",
+        "Accept: application/vnd.github+json",
+        "-H",
+        "User-Agent: bee-updater",
+    ]);
     if let Ok(token) = std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("GH_TOKEN")) {
         if !token.trim().is_empty() {
             cmd.args(["-H", &format!("Authorization: Bearer {}", token)]);
