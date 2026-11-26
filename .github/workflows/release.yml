@@ -1,0 +1,401 @@
+name: Release
+
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bee-release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  eligibility:
+    name: Release eligibility
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      reason: ${{ steps.check.outputs.reason }}
+      current_sha: ${{ steps.check.outputs.current_sha }}
+      tag: ${{ steps.check.outputs.tag }}
+      release_name: ${{ steps.check.outputs.release_name }}
+      previous_tag: ${{ steps.check.outputs.previous_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check release eligibility
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+          import urllib.error
+          import urllib.request
+
+          repo = os.environ["REPO"]
+          token = os.environ["GH_TOKEN"]
+          out = os.environ["GITHUB_OUTPUT"]
+
+          def set_output(**kwargs):
+              with open(out, "a", encoding="utf-8") as f:
+                  for k, v in kwargs.items():
+                      f.write(f"{k}={v}\n")
+
+          def fail(msg):
+              print(f"::error::{msg}")
+              sys.exit(1)
+
+          def gh_api(path):
+              url = f"https://api.github.com/repos/{repo}{path}"
+              req = urllib.request.Request(url, headers={
+                  "Authorization": f"Bearer {token}",
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "bee-release-workflow",
+              })
+              try:
+                  with urllib.request.urlopen(req) as resp:
+                      return resp.status, json.loads(resp.read().decode("utf-8"))
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode("utf-8", errors="replace")
+                  return e.code, body
+
+          current_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          if not re.fullmatch(r"[0-9a-f]{40}", current_sha):
+              fail(f"Could not determine a valid full commit SHA: {current_sha}")
+
+          tag = f"bee-{current_sha}"
+          release_name = f"Bee {current_sha}"
+
+          # Find latest published Bee release (tag: bee-<40-char sha>)
+          releases = []
+          page = 1
+          while True:
+              status, data = gh_api(f"/releases?per_page=100&page={page}")
+              if status != 200:
+                  fail(f"GitHub API error while listing releases (status {status}): {data}")
+              if not isinstance(data, list) or not data:
+                  break
+              releases.extend(data)
+              if len(data) < 100:
+                  break
+              page += 1
+              if page > 10:
+                  fail("Too many releases pages; refusing to continue")
+
+          prev_release = None
+          for r in releases:
+              if r.get("draft") or r.get("prerelease"):
+                  continue
+              tag_name = r.get("tag_name", "")
+              if re.fullmatch(r"bee-([0-9a-f]{40})", tag_name or ""):
+                  prev_release = r
+                  break
+
+          if prev_release is None:
+              reason = "No previous published Bee release found; initial release conditions satisfied."
+              print(reason)
+              set_output(should_release="true", reason=reason, current_sha=current_sha, tag=tag, release_name=release_name, previous_tag="")
+              sys.exit(0)
+
+          prev_tag = prev_release.get("tag_name", "")
+          prev_published = prev_release.get("published_at")
+          m = re.fullmatch(r"bee-([0-9a-f]{40})", prev_tag or "")
+          prev_sha = m.group(1) if m else ""
+
+          if not prev_published:
+              fail(f"Latest release {prev_tag!r} has no published_at timestamp")
+
+          try:
+              published_dt = dt.datetime.fromisoformat(prev_published.replace("Z", "+00:00"))
+          except Exception as e:
+              fail(f"Could not parse previous release published_at {prev_published!r}: {e}")
+
+          now = dt.datetime.now(dt.timezone.utc)
+
+          def add_calendar_month(d):
+              year = d.year + (d.month // 12)
+              month = (d.month % 12) + 1
+              # preserve day/time; clamp day to end of target month
+              import calendar
+              last_day = calendar.monthrange(year, month)[1]
+              day = min(d.day, last_day)
+              return d.replace(year=year, month=month, day=day)
+
+          month_threshold = add_calendar_month(published_dt)
+          month_ok = now >= month_threshold
+          commit_ok = bool(prev_sha) and prev_sha != current_sha
+          if not prev_sha:
+              # If we cannot determine previous SHA from a Bee release tag, fail explicitly
+              fail(f"Latest release tag {prev_tag!r} does not contain a full 40-character Bee commit SHA")
+
+          reasons = []
+          if not commit_ok:
+              reasons.append(f"commit condition not met: current SHA {current_sha} matches last released SHA {prev_sha}")
+          if not month_ok:
+              reasons.append(f"calendar-month condition not met: last release published at {prev_published}, next eligible after {month_threshold.isoformat()}")
+
+          if commit_ok and month_ok:
+              reason = f"Release conditions met: commit changed ({prev_sha} -> {current_sha}) and at least one calendar month has passed since {prev_published}."
+              print(reason)
+              set_output(should_release="true", reason=reason, current_sha=current_sha, tag=tag, release_name=release_name, previous_tag=prev_tag)
+          else:
+              reason = "Pass: " + "; ".join(reasons)
+              print(reason)
+              set_output(should_release="false", reason=reason, current_sha=current_sha, tag=tag, release_name=release_name, previous_tag=prev_tag)
+          PY
+
+      - name: Report eligibility
+        run: |
+          echo "should_release=${{ steps.check.outputs.should_release }}"
+          echo "reason=${{ steps.check.outputs.reason }}"
+          echo "current_sha=${{ steps.check.outputs.current_sha }}"
+          echo "tag=${{ steps.check.outputs.tag }}"
+
+  build:
+    name: Build (${{ matrix.artifact }})
+    needs: eligibility
+    if: needs.eligibility.outputs.should_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-13
+            target: x86_64-apple-darwin
+            platform: macos-x64
+            artifact: bee-${{ needs.eligibility.outputs.current_sha }}-macos-x64
+            archive_ext: tar.gz
+            use_cross: false
+          - os: macos-14
+            target: aarch64-apple-darwin
+            platform: macos-arm64
+            artifact: bee-${{ needs.eligibility.outputs.current_sha }}-macos-arm64
+            archive_ext: tar.gz
+            use_cross: false
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform: linux-x64
+            artifact: bee-${{ needs.eligibility.outputs.current_sha }}-linux-x64
+            archive_ext: tar.gz
+            use_cross: false
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            platform: linux-arm64
+            artifact: bee-${{ needs.eligibility.outputs.current_sha }}-linux-arm64
+            archive_ext: tar.gz
+            use_cross: true
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows-x64
+            artifact: bee-${{ needs.eligibility.outputs.current_sha }}-windows-x64
+            archive_ext: zip
+            use_cross: false
+          - os: ubuntu-latest
+            target: x86_64-unknown-freebsd
+            platform: freebsd-x64
+            artifact: bee-${{ needs.eligibility.outputs.current_sha }}-freebsd-x64
+            archive_ext: tar.gz
+            use_cross: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.eligibility.outputs.current_sha }}
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.use_cross
+        run: cargo install cross --locked
+
+      - name: Run tests (native targets only)
+        if: "!matrix.use_cross"
+        run: cargo test --all-targets --release
+
+      - name: Build release binary (cargo)
+        if: "!matrix.use_cross"
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build release binary (cross)
+        if: matrix.use_cross
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Verify binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ matrix.target }}" == *windows* ]]; then
+            BIN="target/${{ matrix.target }}/release/bee.exe"
+          else
+            BIN="target/${{ matrix.target }}/release/bee"
+          fi
+          test -f "$BIN"
+          ls -la "$BIN"
+
+      - name: Package archive
+        shell: bash
+        env:
+          CURRENT_SHA: ${{ needs.eligibility.outputs.current_sha }}
+          PLATFORM: ${{ matrix.platform }}
+          TARGET: ${{ matrix.target }}
+          ARTIFACT: ${{ matrix.artifact }}
+          EXT: ${{ matrix.archive_ext }}
+        run: |
+          set -euo pipefail
+          DIST="dist/${ARTIFACT}"
+          mkdir -p "$DIST"
+          if [[ "$TARGET" == *windows* ]]; then
+            cp "target/$TARGET/release/bee.exe" "$DIST/bee.exe"
+          else
+            cp "target/$TARGET/release/bee" "$DIST/bee"
+            chmod +x "$DIST/bee"
+          fi
+          BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          cat > "$DIST/README.txt" <<EOF
+          Bee precompiled binary
+
+          Platform: $PLATFORM
+          Target: $TARGET
+          Commit SHA: $CURRENT_SHA
+          Build date (UTC): $BUILD_DATE
+          EOF
+          mkdir -p out
+          if [[ "$EXT" == "zip" ]]; then
+            if command -v 7z >/dev/null 2>&1; then
+              (cd dist && 7z a -tzip "../out/${ARTIFACT}.zip" "$ARTIFACT")
+            else
+              (cd dist && zip -r "../out/${ARTIFACT}.zip" "$ARTIFACT")
+            fi
+          else
+            tar -C dist -czf "out/${ARTIFACT}.tar.gz" "$ARTIFACT"
+          fi
+          ls -la out
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: out/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: [eligibility, build]
+    if: needs.eligibility.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.eligibility.outputs.current_sha }}
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Validate artifacts and checksums
+        env:
+          CURRENT_SHA: ${{ needs.eligibility.outputs.current_sha }}
+          TAG: ${{ needs.eligibility.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          ls -la
+          expected=(
+            "bee-${CURRENT_SHA}-macos-x64.tar.gz"
+            "bee-${CURRENT_SHA}-macos-arm64.tar.gz"
+            "bee-${CURRENT_SHA}-linux-x64.tar.gz"
+            "bee-${CURRENT_SHA}-linux-arm64.tar.gz"
+            "bee-${CURRENT_SHA}-windows-x64.zip"
+            "bee-${CURRENT_SHA}-freebsd-x64.tar.gz"
+          )
+          for f in "${expected[@]}"; do
+            test -f "$f" || { echo "Missing artifact: $f"; exit 1; }
+          done
+          sha256sum "${expected[@]}" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Ensure release does not exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.eligibility.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refusing to overwrite."
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.eligibility.outputs.tag }}
+          RELEASE_NAME: ${{ needs.eligibility.outputs.release_name }}
+          CURRENT_SHA: ${{ needs.eligibility.outputs.current_sha }}
+        run: |
+          set -euo pipefail
+          NOTES_FILE="$(mktemp)"
+          cat > "$NOTES_FILE" <<EOF
+          Automated Bee release.
+
+          - Commit SHA: \`${CURRENT_SHA}\`
+          - Tag: \`${TAG}\`
+
+          ## Supported platforms
+          - macOS x64 (\`x86_64-apple-darwin\`)
+          - macOS ARM64 (\`aarch64-apple-darwin\`)
+          - Linux x64 (\`x86_64-unknown-linux-gnu\`)
+          - Linux ARM64 (\`aarch64-unknown-linux-gnu\`)
+          - Windows x64 (\`x86_64-pc-windows-msvc\`)
+          - FreeBSD x64 (\`x86_64-unknown-freebsd\`)
+
+          ## Checksums
+          Verify downloads with \`SHA256SUMS\`.
+          EOF
+          gh release create "$TAG" \
+            --target "$CURRENT_SHA" \
+            --title "$RELEASE_NAME" \
+            --notes-file "$NOTES_FILE" \
+            release-assets/bee-${CURRENT_SHA}-macos-x64.tar.gz \
+            release-assets/bee-${CURRENT_SHA}-macos-arm64.tar.gz \
+            release-assets/bee-${CURRENT_SHA}-linux-x64.tar.gz \
+            release-assets/bee-${CURRENT_SHA}-linux-arm64.tar.gz \
+            release-assets/bee-${CURRENT_SHA}-windows-x64.zip \
+            release-assets/bee-${CURRENT_SHA}-freebsd-x64.tar.gz \
+            release-assets/SHA256SUMS
+
+  pass:
+    name: Pass (release conditions not met)
+    needs: eligibility
+    if: needs.eligibility.outputs.should_release != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report pass
+        run: |
+          echo "Release workflow finished with pass."
+          echo "Reason: ${{ needs.eligibility.outputs.reason }}"
