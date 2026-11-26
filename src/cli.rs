@@ -35,8 +35,8 @@ pub enum Commands {
     #[command(about = "Clear cache and reset trigger states")]
     Clean,
 
-    /// Update bee to the latest version from GitHub
-    #[command(about = "Update bee to the latest version")]
+    /// Update bee to the latest released version from GitHub Releases
+    #[command(about = "Update bee from the latest GitHub Release")]
     Update,
 
     /// Show the installed bee git hash (recorded at build/install time)
