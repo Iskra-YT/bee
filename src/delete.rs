@@ -1,14 +1,20 @@
-use anyhow::Result;
-use std::fs;
-use crate::yaml;
 use crate::file;
 use crate::hash;
+use crate::yaml;
+use anyhow::Result;
+use std::fs;
 
 pub fn delete_task(name: &String) -> Result<()> {
     fs::remove_file(format!("bee/tasks/{}.yml", name))?;
-    yaml::modify::remove_from_yaml_list(&String::from("bee/system/config.yml"), &String::from("tasks"), name)?;
+    yaml::modify::remove_from_yaml_list(
+        &String::from("bee/system/config.yml"),
+        &String::from("tasks"),
+        name,
+    )?;
 
-    let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
+    let config_hash = hash::hash_string(&file::get_file_content(&String::from(
+        "bee/system/config.yml",
+    ))?);
     hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
     println!("Task '{}' deleted", name);
@@ -17,9 +23,15 @@ pub fn delete_task(name: &String) -> Result<()> {
 
 pub fn delete_pipeline(name: &String) -> Result<()> {
     fs::remove_file(format!("bee/pipelines/{}.yml", name))?;
-    yaml::modify::remove_from_yaml_list(&String::from("bee/system/config.yml"), &String::from("pipelines"), name)?;
+    yaml::modify::remove_from_yaml_list(
+        &String::from("bee/system/config.yml"),
+        &String::from("pipelines"),
+        name,
+    )?;
 
-    let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
+    let config_hash = hash::hash_string(&file::get_file_content(&String::from(
+        "bee/system/config.yml",
+    ))?);
     hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
     println!("Pipeline '{}' deleted", name);
@@ -28,9 +40,15 @@ pub fn delete_pipeline(name: &String) -> Result<()> {
 
 pub fn delete_rule(name: &String) -> Result<()> {
     fs::remove_file(format!("bee/rules/{}.yml", name))?;
-    yaml::modify::remove_from_yaml_list(&String::from("bee/system/config.yml"), &String::from("rules"), name)?;
+    yaml::modify::remove_from_yaml_list(
+        &String::from("bee/system/config.yml"),
+        &String::from("rules"),
+        name,
+    )?;
 
-    let config_hash = hash::hash_string(&file::get_file_content(&String::from("bee/system/config.yml"))?);
+    let config_hash = hash::hash_string(&file::get_file_content(&String::from(
+        "bee/system/config.yml",
+    ))?);
     hash::write_hash_file("bee/system/hash/config", &config_hash)?;
 
     println!("Rule '{}' deleted", name);

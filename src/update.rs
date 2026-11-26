@@ -1,8 +1,8 @@
+use anyhow::Result;
+use chrono::Utc;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::process::{Command, Stdio};
-use anyhow::Result;
-use chrono::Utc;
 
 const REPO_URL: &str = "https://www.github.com/Iskra-YT/bee.git";
 
@@ -73,7 +73,11 @@ pub fn run_update() -> Result<()> {
 
     let _ = fs::remove_dir_all(&tmp_dir);
 
-    println!("  bee updated successfully to {} (git {})", current_exe.display(), new_hash);
+    println!(
+        "  bee updated successfully to {} (git {})",
+        current_exe.display(),
+        new_hash
+    );
     println!("  run 'bee version' to confirm");
     Ok(())
 }

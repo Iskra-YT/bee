@@ -1,6 +1,6 @@
-use anyhow::Result;
-use crate::{file, hash};
 use crate::time;
+use crate::{file, hash};
+use anyhow::Result;
 use std::fs;
 use std::path::Path;
 
@@ -62,7 +62,8 @@ fn cleanup_old_backups() -> Result<()> {
     }
 
     let remove_count = versions.len() - MAX_BACKUPS;
-    let to_remove: Vec<String> = versions.iter()
+    let to_remove: Vec<String> = versions
+        .iter()
         .take(remove_count)
         .filter_map(|v| v["hash"].as_str().map(|s| s.to_string()))
         .collect();
@@ -72,10 +73,8 @@ fn cleanup_old_backups() -> Result<()> {
         let _ = fs::remove_dir_all(&path);
     }
 
-    let remaining: Vec<json::JsonValue> = versions.into_iter()
-        .skip(remove_count)
-        .cloned()
-        .collect();
+    let remaining: Vec<json::JsonValue> =
+        versions.into_iter().skip(remove_count).cloned().collect();
 
     let versions_array = json::JsonValue::Array(remaining);
     manifest["versions"] = versions_array;
@@ -240,10 +239,13 @@ pub fn restore(hash_val: &str) -> Result<()> {
 
     let meta_path = backup_path.join(".meta.json");
     if meta_path.exists() {
-        let meta_content = file::get_file_content(&meta_path.to_string_lossy().to_string())?;
+        let meta_content = file::get_file_content(meta_path.to_string_lossy().as_ref())?;
         let meta = json::parse(&meta_content)?;
         let date = meta["date"].as_str().unwrap_or("?");
-        println!("Restored from backup: {} (date: {}, weight: {})", hash_val, date, meta["weight"]);
+        println!(
+            "Restored from backup: {} (date: {}, weight: {})",
+            hash_val, date, meta["weight"]
+        );
     } else {
         println!("Restored from backup: {}", hash_val);
     }

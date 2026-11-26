@@ -8,7 +8,7 @@ pub fn update_docs() -> Result<()> {
     ];
 
     for (path, content) in files {
-        crate::file::write_file_content(&String::from(path), &content.to_string())?;
+        crate::file::write_file_content(&String::from(path), content)?;
         println!("Updated {}", path);
     }
 

@@ -1,14 +1,14 @@
-pub mod url;
+pub mod command;
 pub mod git;
 pub mod package;
-pub mod command;
 pub mod pipesystem;
+pub mod url;
 
+use crate::parser::{Dependency, DepsConfig};
+use crate::{file, hash, yaml};
+use anyhow::Result;
 use std::fs;
 use std::process::Command;
-use anyhow::Result;
-use crate::parser::{Dependency, DepsConfig};
-use crate::{file, yaml, hash};
 
 const DEPS_PATH: &str = "bee/system/deps.yml";
 const DEPS_HASH_PATH: &str = "bee/system/hash/deps";
@@ -33,7 +33,11 @@ fn run_install_script(name: &str) -> Result<()> {
 
     if !status.success() {
         let code = status.code().unwrap_or(-1);
-        return Err(anyhow::anyhow!("install script failed with exit code {} for {}", code, name));
+        return Err(anyhow::anyhow!(
+            "install script failed with exit code {} for {}",
+            code,
+            name
+        ));
     }
 
     println!("  Install script completed for {}", name);
@@ -63,7 +67,10 @@ fn install_deps(update: bool) -> Result<()> {
         install_one(dep, update)?;
     }
 
-    println!("All dependencies {}.", if update { "updated" } else { "installed" });
+    println!(
+        "All dependencies {}.",
+        if update { "updated" } else { "installed" }
+    );
     Ok(())
 }
 
@@ -73,34 +80,48 @@ pub fn install_one(dep: &Dependency, update: bool) -> Result<()> {
 
     match dep.dep_type.as_str() {
         "url" => {
-            let source = dep.source.as_deref()
-                .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'url' requires a source", dep.name))?;
+            let source = dep.source.as_deref().ok_or_else(|| {
+                anyhow::anyhow!("Dependency '{}' of type 'url' requires a source", dep.name)
+            })?;
             let installed = url::install(&dep.name, source, dep.version.as_deref(), update)?;
             if installed {
                 run_install_script(&dep.name)?;
             }
         }
         "git" => {
-            let source = dep.source.as_deref()
-                .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'git' requires a source", dep.name))?;
+            let source = dep.source.as_deref().ok_or_else(|| {
+                anyhow::anyhow!("Dependency '{}' of type 'git' requires a source", dep.name)
+            })?;
             let installed = git::install(&dep.name, source, dep.version.as_deref(), update)?;
             if installed {
                 run_install_script(&dep.name)?;
             }
         }
         "package" => {
-            let source = dep.source.as_deref()
-                .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'package' requires a source", dep.name))?;
+            let source = dep.source.as_deref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Dependency '{}' of type 'package' requires a source",
+                    dep.name
+                )
+            })?;
             package::install(&dep.name, source, dep.command.as_deref())?;
         }
         "command" => {
-            let cmd = dep.command.as_deref()
-                .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'command' requires a command", dep.name))?;
+            let cmd = dep.command.as_deref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Dependency '{}' of type 'command' requires a command",
+                    dep.name
+                )
+            })?;
             command::install(&dep.name, cmd)?;
         }
         "manager" => {
-            let path = dep.path.as_deref()
-                .ok_or_else(|| anyhow::anyhow!("Dependency '{}' of type 'manager' requires a path", dep.name))?;
+            let path = dep.path.as_deref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Dependency '{}' of type 'manager' requires a path",
+                    dep.name
+                )
+            })?;
             pipesystem::install(&dep.name, path, dep.command.as_deref())?;
         }
         _ => return Err(anyhow::anyhow!("Unknown dependency type: {}", dep.dep_type)),
@@ -109,7 +130,15 @@ pub fn install_one(dep: &Dependency, update: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn add_dep(name: &str, dep_type: &str, source: Option<&str>, version: Option<&str>, command: Option<&str>, install_script: Option<&str>, path: Option<&str>) -> Result<()> {
+pub fn add_dep(
+    name: &str,
+    dep_type: &str,
+    source: Option<&str>,
+    version: Option<&str>,
+    command: Option<&str>,
+    install_script: Option<&str>,
+    path: Option<&str>,
+) -> Result<()> {
     let mut deps = read_deps()?;
 
     if deps.iter().any(|d| d.name == name) {
@@ -119,27 +148,39 @@ pub fn add_dep(name: &str, dep_type: &str, source: Option<&str>, version: Option
     match dep_type {
         "url" | "git" | "package" => {
             if source.is_none() {
-                return Err(anyhow::anyhow!("Dependency type '{}' requires a source", dep_type));
+                return Err(anyhow::anyhow!(
+                    "Dependency type '{}' requires a source",
+                    dep_type
+                ));
             }
         }
         "command" => {
             if command.is_none() {
-                return Err(anyhow::anyhow!("Dependency type '{}' requires a command", dep_type));
+                return Err(anyhow::anyhow!(
+                    "Dependency type '{}' requires a command",
+                    dep_type
+                ));
             }
         }
         "manager" => {
             if path.is_none() {
-                return Err(anyhow::anyhow!("Dependency type '{}' requires a path", dep_type));
+                return Err(anyhow::anyhow!(
+                    "Dependency type '{}' requires a path",
+                    dep_type
+                ));
             }
         }
         _ => return Err(anyhow::anyhow!("Unknown dependency type: {}", dep_type)),
     }
 
     if let Some(script) = install_script {
-    let script_path = format!("bee/scripts/install/{}.sh", name);
+        let script_path = format!("bee/scripts/install/{}.sh", name);
         fs::create_dir_all("bee/scripts/install")?;
-        file::write_file_content(&String::from(&script_path), &script.to_string())?;
-        fs::set_permissions(&script_path, std::os::unix::fs::PermissionsExt::from_mode(0o755))?;
+        file::write_file_content(&script_path, script)?;
+        fs::set_permissions(
+            &script_path,
+            std::os::unix::fs::PermissionsExt::from_mode(0o755),
+        )?;
     }
 
     let new_dep = Dependency {

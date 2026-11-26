@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use crate::file;
 use crate::parser;
 use crate::parser::reader::config as reader;
-use crate::file;
 use crate::run::dag;
+use std::collections::HashMap;
 
 pub enum GraphFormat {
     Tree,
@@ -16,14 +16,21 @@ pub fn render_pipeline_graph(name: &str, format: GraphFormat) -> anyhow::Result<
     let subpipelines = pipeline.pipelines.clone();
     let (topo_order, graph) = dag::build_dag(pipeline)?;
 
-    let labels: HashMap<_, _> = topo_order.iter().enumerate().map(|(_, &node)| {
-        (node, graph[node].name.clone())
-    }).collect();
+    let labels: HashMap<_, _> = topo_order
+        .iter()
+        .map(|&node| (node, graph[node].name.clone()))
+        .collect();
 
     match format {
         GraphFormat::Tree => Ok(render_tree(&graph, &topo_order, &labels, &subpipelines)),
         GraphFormat::Dot => Ok(render_dot(name, &graph, &topo_order, &labels)),
-        GraphFormat::Mermaid => Ok(render_mermaid(name, &graph, &topo_order, &labels, &subpipelines)),
+        GraphFormat::Mermaid => Ok(render_mermaid(
+            name,
+            &graph,
+            &topo_order,
+            &labels,
+            &subpipelines,
+        )),
     }
 }
 
@@ -37,9 +44,10 @@ pub fn render_all_pipelines(format: GraphFormat) -> anyhow::Result<String> {
         let subpipelines = pipe.pipelines.clone();
         let (topo_order, graph) = dag::build_dag(pipe)?;
 
-        let labels: HashMap<_, _> = topo_order.iter().enumerate().map(|(_, &node)| {
-            (node, graph[node].name.clone())
-        }).collect();
+        let labels: HashMap<_, _> = topo_order
+            .iter()
+            .map(|&node| (node, graph[node].name.clone()))
+            .collect();
 
         match format {
             GraphFormat::Tree => {
@@ -52,7 +60,13 @@ pub fn render_all_pipelines(format: GraphFormat) -> anyhow::Result<String> {
                 output.push('\n');
             }
             GraphFormat::Mermaid => {
-                output.push_str(&render_mermaid(&pipeline.name, &graph, &topo_order, &labels, &subpipelines));
+                output.push_str(&render_mermaid(
+                    &pipeline.name,
+                    &graph,
+                    &topo_order,
+                    &labels,
+                    &subpipelines,
+                ));
                 output.push('\n');
             }
         }
@@ -84,7 +98,11 @@ fn render_tree(
         if deps.is_empty() {
             output.push_str(&format!("  ├── {}\n", task_name));
         } else {
-            output.push_str(&format!("  ├── {} (depends on: {})\n", task_name, deps.join(", ")));
+            output.push_str(&format!(
+                "  ├── {} (depends on: {})\n",
+                task_name,
+                deps.join(", ")
+            ));
         }
     }
 
@@ -102,9 +120,11 @@ fn render_dot(
     output.push_str("  rankdir=LR;\n");
     output.push_str("  node [shape=box, style=rounded];\n\n");
 
-    let node_ids: HashMap<_, _> = order.iter().enumerate().map(|(i, &node)| {
-        (node, format!("n{}", i))
-    }).collect();
+    let node_ids: HashMap<_, _> = order
+        .iter()
+        .enumerate()
+        .map(|(i, &node)| (node, format!("n{}", i)))
+        .collect();
 
     for (&node, id) in &node_ids {
         let name = labels.get(&node).cloned().unwrap_or_default();
@@ -137,7 +157,10 @@ fn render_mermaid(
 
     if !subpipelines.is_empty() {
         for sub in subpipelines {
-            output.push_str(&format!("  {}[[\"{}\"]]-->\"{} (subpipeline)\";\n", sub, sub, pipeline_name));
+            output.push_str(&format!(
+                "  {}[[\"{}\"]]-->\"{} (subpipeline)\";\n",
+                sub, sub, pipeline_name
+            ));
         }
     }
 

@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::file;
+use anyhow::Result;
 
 pub fn save_yaml<T: serde::Serialize>(path: &str, data: &T) -> Result<()> {
     let yaml = serde_yaml::to_string(data)?;

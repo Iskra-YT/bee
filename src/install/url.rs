@@ -1,12 +1,12 @@
+use anyhow::Result;
 use std::fs;
 use std::process::{Command, Stdio};
-use anyhow::Result;
 use url::Url;
 
 fn filename_from_url(source: &str) -> Result<String> {
     if let Ok(url) = Url::parse(source) {
-        if let Some(segments) = url.path_segments() {
-            if let Some(last) = segments.last() {
+        if let Some(mut segments) = url.path_segments() {
+            if let Some(last) = segments.next_back() {
                 if !last.is_empty() {
                     return Ok(last.to_string());
                 }
@@ -32,7 +32,7 @@ pub fn install(name: &str, source: &str, _version: Option<&str>, update: bool) -
     fs::create_dir_all(&deps_dir)?;
 
     let filename = filename_from_url(source)?;
-    let download_path = format!("{}/{}", deps_dir, &filename);
+    let download_path = format!("{}/{}", deps_dir, filename);
 
     println!("  Downloading {} from {}...", name, source);
     let status = Command::new("curl")
@@ -44,7 +44,11 @@ pub fn install(name: &str, source: &str, _version: Option<&str>, update: bool) -
     if !status.success() {
         let code = status.code().unwrap_or(-1);
         let _ = fs::remove_file(&download_path);
-        return Err(anyhow::anyhow!("Failed to download {} (exit code {})", name, code));
+        return Err(anyhow::anyhow!(
+            "Failed to download {} (exit code {})",
+            name,
+            code
+        ));
     }
     eprintln!();
 
@@ -58,7 +62,11 @@ pub fn install(name: &str, source: &str, _version: Option<&str>, update: bool) -
 
         if !extract_status.success() {
             let code = extract_status.code().unwrap_or(-1);
-            return Err(anyhow::anyhow!("Failed to extract {} (exit code {})", name, code));
+            return Err(anyhow::anyhow!(
+                "Failed to extract {} (exit code {})",
+                name,
+                code
+            ));
         }
         let _ = fs::remove_file(&download_path);
     } else if source.ends_with(".zip") {
@@ -71,7 +79,11 @@ pub fn install(name: &str, source: &str, _version: Option<&str>, update: bool) -
 
         if !extract_status.success() {
             let code = extract_status.code().unwrap_or(-1);
-            return Err(anyhow::anyhow!("Failed to extract {} (exit code {})", name, code));
+            return Err(anyhow::anyhow!(
+                "Failed to extract {} (exit code {})",
+                name,
+                code
+            ));
         }
         let _ = fs::remove_file(&download_path);
     }

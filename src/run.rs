@@ -1,11 +1,11 @@
-mod pipeline;
+pub mod cache;
 pub mod dag;
 mod parallel;
+mod pipeline;
 pub mod tasks;
-pub mod cache;
 
-use anyhow::Result;
 use crate::parser::reader::config as parser;
+use anyhow::Result;
 
 pub fn run_pipeline(name: String, config: Option<crate::parser::Pipeline>) -> Result<()> {
     if let Some(config) = config {
@@ -22,7 +22,7 @@ pub fn run_pipeline(name: String, config: Option<crate::parser::Pipeline>) -> Re
     Ok(())
 }
 
-pub fn run_all() -> Result<()>{
+pub fn run_all() -> Result<()> {
     let pipelines = parser::read_pipelines().unwrap_or_else(|e| {
         eprint!("Error: {}", e);
         vec![]
@@ -39,7 +39,7 @@ pub fn run_task(name: String) -> Result<()> {
     let task_file = format!("bee/tasks/{}.yml", name);
     let content = crate::file::get_file_content(&task_file)?;
     let task = parser::read_task_from_string(&content, &name)?;
-    
+
     tasks::run_task(task)?;
     Ok(())
 }

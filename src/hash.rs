@@ -1,4 +1,4 @@
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{self, Read};
 
@@ -17,7 +17,9 @@ pub fn hash_file(path: &str) -> io::Result<String> {
 
     loop {
         let count = file.read(&mut buffer)?;
-        if count == 0 { break; }
+        if count == 0 {
+            break;
+        }
         hasher.update(&buffer[..count]);
     }
 
@@ -36,4 +38,3 @@ pub fn write_hash_file(path: &str, value: &str) -> io::Result<()> {
     fs::write(format!("{}.bee", path), bee_git_hash())?;
     Ok(())
 }
-

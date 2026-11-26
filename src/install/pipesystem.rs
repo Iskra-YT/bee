@@ -1,10 +1,13 @@
-use std::process::Command;
 use anyhow::Result;
+use std::process::Command;
 
 pub fn install(name: &str, path: &str, command: Option<&str>) -> Result<()> {
     let install_cmd = command.unwrap_or("npm install");
 
-    println!("  Running '{}' in {} for dependency {}...", install_cmd, path, name);
+    println!(
+        "  Running '{}' in {} for dependency {}...",
+        install_cmd, path, name
+    );
 
     let parts: Vec<&str> = install_cmd.split_whitespace().collect();
     if parts.is_empty() {
@@ -20,7 +23,12 @@ pub fn install(name: &str, path: &str, command: Option<&str>) -> Result<()> {
 
     if !output.status.success() {
         let code = output.status.code().unwrap_or(-1);
-        return Err(anyhow::anyhow!("Failed to install {} in {}: command exited with code {}", name, path, code));
+        return Err(anyhow::anyhow!(
+            "Failed to install {} in {}: command exited with code {}",
+            name,
+            path,
+            code
+        ));
     }
 
     println!("  Installed {} in {}", name, path);

@@ -4,10 +4,10 @@ use std::thread;
 
 pub fn find_parallel_groups(
     graph: &dag::DiGraph<Task, ()>,
-    task_order: &Vec<dag::NodeIndex>,
+    task_order: &[dag::NodeIndex],
 ) -> Vec<Vec<dag::NodeIndex>> {
     let mut groups: Vec<Vec<dag::NodeIndex>> = vec![];
-    let mut remaining: Vec<dag::NodeIndex> = task_order.clone();
+    let mut remaining: Vec<dag::NodeIndex> = task_order.to_owned();
 
     while !remaining.is_empty() {
         let mut group = vec![];

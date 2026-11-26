@@ -3,11 +3,11 @@ use anyhow::Result;
 use std::fs;
 use std::path::Path;
 
-pub fn get_file_content(path: &String) -> Result<String> {
-    return Ok(fs::read_to_string(path)?);
+pub fn get_file_content(path: &str) -> Result<String> {
+    Ok(fs::read_to_string(path)?)
 }
 
-pub fn write_file_content(path: &String, content: &String) -> Result<()> {
+pub fn write_file_content(path: &str, content: &str) -> Result<()> {
     fs::write(path, content)?;
     Ok(())
 }

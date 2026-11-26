@@ -1,5 +1,5 @@
-use std::process::Command;
 use anyhow::Result;
+use std::process::Command;
 
 pub fn install(name: &str, source: &str, command: Option<&str>) -> Result<()> {
     let install_cmd = command.unwrap_or("npm install -g");
@@ -14,9 +14,7 @@ pub fn install(name: &str, source: &str, command: Option<&str>) -> Result<()> {
     let mut args: Vec<&str> = parts[1..].to_vec();
     args.push(source);
 
-    let output = Command::new(parts[0])
-        .args(&args)
-        .output()?;
+    let output = Command::new(parts[0]).args(&args).output()?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

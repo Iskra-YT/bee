@@ -1,7 +1,7 @@
-use anyhow::Result;
 use crate::file;
-use crate::parser::Task;
 use crate::parser::reader::config as reader;
+use crate::parser::Task;
+use anyhow::Result;
 use petgraph::algo::toposort;
 pub use petgraph::graph::DiGraph;
 pub use petgraph::prelude::NodeIndex;
@@ -38,8 +38,9 @@ pub fn build_dag(config: crate::parser::Pipeline) -> Result<(Vec<NodeIndex>, DiG
         }
     }
 
-    let topo_order = toposort(&graph, None)
-        .map_err(|cycle| anyhow::anyhow!("Cycle detected in task dependencies: {:?}", cycle.node_id()))?;
+    let topo_order = toposort(&graph, None).map_err(|cycle| {
+        anyhow::anyhow!("Cycle detected in task dependencies: {:?}", cycle.node_id())
+    })?;
 
     Ok((topo_order, graph))
 }

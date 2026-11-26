@@ -1,6 +1,6 @@
-use anyhow::Result;
-use crate::parser::reader::config as reader;
 use crate::file;
+use crate::parser::reader::config as reader;
+use anyhow::Result;
 
 pub fn show_status() -> Result<()> {
     let pipelines = reader::read_pipelines()?;
@@ -55,8 +55,11 @@ fn get_task_status(name: &str) -> String {
 }
 
 fn count_cached_tasks(tasks: &[crate::parser::TaskConfig]) -> usize {
-    tasks.iter().filter(|t| {
-        let path = format!("bee/cache/{}/last_run", t.name);
-        std::path::Path::new(&path).exists()
-    }).count()
+    tasks
+        .iter()
+        .filter(|t| {
+            let path = format!("bee/cache/{}/last_run", t.name);
+            std::path::Path::new(&path).exists()
+        })
+        .count()
 }
