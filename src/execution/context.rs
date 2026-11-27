@@ -5,6 +5,10 @@ use std::time::Duration;
 #[derive(Debug, Clone, Default)]
 pub struct ExecutionOptions {
     pub timeout: Option<Duration>,
+    /// When true and the process is attached to a terminal, stdout/stderr are
+    /// inherited so interactive programs (ssh, sudo) work naturally. Output is
+    /// not captured for logs in this mode.
+    pub interactive_tty: bool,
 }
 
 #[derive(Debug, Clone)]

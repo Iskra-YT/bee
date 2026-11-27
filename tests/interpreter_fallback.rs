@@ -113,7 +113,7 @@ fn script_task(name: &str, script: Option<String>, candidates: Vec<String>) -> T
 /// Freshly written executables can briefly report ETXTBSY on busy CI runners.
 fn run_task_with_retry(task: &Task) -> Result<bee::execution::ExecutionResult, ExecutionError> {
     for attempt in 0..5 {
-        match execute_task(task) {
+        match execute_task(task, false) {
             Err(ExecutionError::Spawn { source, .. })
                 if source.raw_os_error() == Some(26) && attempt < 4 =>
             {
@@ -352,7 +352,7 @@ fn empty_and_blank_interpreter_lists_are_rejected() {
     let err = empty.validate().unwrap_err().to_string();
     assert!(err.contains("empty"), "error: {}", err);
     assert!(err.contains("interpreter"), "error: {}", err);
-    let err = execute_task(&empty).unwrap_err().to_string();
+    let err = execute_task(&empty, false).unwrap_err().to_string();
     assert!(err.contains("empty"), "error: {}", err);
 
     let blank: Task = serde_yaml::from_str(

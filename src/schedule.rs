@@ -275,7 +275,7 @@ pub fn run_pass(now: &DateTime<Local>) -> Result<usize> {
                 "schedule: firing task '{}' for rule '{}'",
                 rule.task, rule.name
             ));
-            match crate::run::run_task(rule.task.clone(), true) {
+            match crate::run::run_task(rule.task.clone(), true, false) {
                 Ok(()) => {
                     crate::ui::info(format!("schedule: task '{}' completed", rule.task))
                 }

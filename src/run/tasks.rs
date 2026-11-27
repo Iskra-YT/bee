@@ -391,7 +391,7 @@ fn format_success_log(task_name: &str, result: &crate::execution::ExecutionResul
     )
 }
 
-pub fn run_task(task: crate::parser::Task, force: bool) -> Result<()> {
+pub fn run_task(task: crate::parser::Task, force: bool, interactive: bool) -> Result<()> {
     cache::begin_task(&task.name)?;
 
     let should_run = match should_run(&task.name, force) {
@@ -415,7 +415,11 @@ pub fn run_task(task: crate::parser::Task, force: bool) -> Result<()> {
 
     crate::ui::info(format!("{}: running", task.name));
 
-    let result = crate::execution::execute_task(&task);
+    let interactive = interactive
+        && !crate::ui::json_mode()
+        && std::io::IsTerminal::is_terminal(&std::io::stdin())
+        && std::io::IsTerminal::is_terminal(&std::io::stdout());
+    let result = crate::execution::execute_task(&task, interactive);
     match result {
         Ok(exec_result) if exec_result.success => {
             cache::commit_pending()?;

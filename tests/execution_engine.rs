@@ -173,7 +173,7 @@ fn legacy_execution_uses_run() {
         return;
     }
     task.run = Some("printf legacy-ok".to_string());
-    let result = execute_task(&task).unwrap();
+    let result = execute_task(&task, false).unwrap();
     assert!(result.success);
     assert!(result.stdout.contains("legacy-ok"));
 }
@@ -193,7 +193,7 @@ fn process_executor_runs_with_args() {
         task.program = Some("sh".to_string());
         task.args = Some(vec!["-c".to_string(), "printf '%s' hello".to_string()]);
     }
-    let result = execute_task(&task).unwrap();
+    let result = execute_task(&task, false).unwrap();
     assert!(result.success);
     assert!(result.stdout.to_lowercase().contains("hello"));
 }
@@ -218,7 +218,7 @@ fn process_executor_preserves_argument_boundaries() {
             "a b".to_string(),
         ]);
     }
-    let result = execute_task(&task).unwrap();
+    let result = execute_task(&task, false).unwrap();
     assert!(result.success);
     assert!(result.stdout.contains("a b"));
 }
@@ -247,7 +247,7 @@ fn process_executor_working_dir_and_env() {
         ]);
     }
 
-    let result = execute_task(&task).unwrap();
+    let result = execute_task(&task, false).unwrap();
     assert!(result.success);
     assert!(result.stdout.contains("bee-value"));
     let normalized_out = result.stdout.replace('\\', "/");
@@ -276,7 +276,7 @@ fn process_executor_captures_stderr_and_exit_code() {
         ]);
     }
 
-    let result = execute_task(&task).unwrap();
+    let result = execute_task(&task, false).unwrap();
     assert!(!result.success);
     assert_eq!(result.exit_code, 7);
     assert!(result.stderr.contains("err"));
@@ -287,7 +287,7 @@ fn missing_program_returns_error() {
     let mut task = base_task("missing");
     task.executor = Some("process".to_string());
     task.program = Some("definitely-not-a-real-bee-program-12345".to_string());
-    let err = execute_task(&task).unwrap_err();
+    let err = execute_task(&task, false).unwrap_err();
     match err {
         ExecutionError::ProgramNotFound { program, .. } => {
             assert!(program.contains("definitely-not-a-real-bee-program"))
@@ -307,7 +307,7 @@ fn shell_executor_runs_command() {
         task.shell = Some("sh".to_string());
         task.run = Some("printf shell-ok".to_string());
     }
-    let result = execute_task(&task).unwrap();
+    let result = execute_task(&task, false).unwrap();
     assert!(result.success);
     assert!(result.stdout.contains("shell-ok"));
 }
@@ -329,7 +329,7 @@ fn script_executor_runs_python_when_available() {
     task.script = Some(script.to_string_lossy().to_string());
     task.args = Some(vec!["ok".to_string()]);
 
-    let result = execute_task(&task).unwrap();
+    let result = execute_task(&task, false).unwrap();
     assert!(result.success);
     assert!(result.stdout.contains("py-ok"));
 }

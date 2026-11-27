@@ -22,7 +22,7 @@ impl ExecutorRegistry {
         Self
     }
 
-    pub fn execute(&self, task: &Task) -> Result<ExecutionResult, ExecutionError> {
+    pub fn execute(&self, task: &Task, interactive: bool) -> Result<ExecutionResult, ExecutionError> {
         let resolved =
             resolve_task_for_platform(task).map_err(|e| ExecutionError::InvalidConfig {
                 task: task.name.clone(),
@@ -31,6 +31,7 @@ impl ExecutorRegistry {
 
         let executor_name = resolved.effective_executor();
         let mut context = build_context(&resolved)?;
+        context.options.interactive_tty = interactive;
 
         match executor_name.as_str() {
             "process" => ProcessExecutor.execute(&context),
@@ -96,6 +97,6 @@ fn build_env(task: &Task) -> BTreeMap<String, String> {
     env
 }
 
-pub fn execute_task(task: &Task) -> Result<ExecutionResult, ExecutionError> {
-    ExecutorRegistry::new().execute(task)
+pub fn execute_task(task: &Task, interactive: bool) -> Result<ExecutionResult, ExecutionError> {
+    ExecutorRegistry::new().execute(task, interactive)
 }

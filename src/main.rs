@@ -238,7 +238,7 @@ fn run() -> Result<()> {
                 if ui::dry_run() {
                     run::dry_run_task(&name)?;
                 } else {
-                    run::run_task(name, force)?;
+                    run::run_task(name, force, true)?;
                 }
             }
             cli::TaskCommand::List => {

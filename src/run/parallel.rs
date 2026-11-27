@@ -82,7 +82,7 @@ fn run_chunk(graph: &dag::DiGraph<Task, ()>, chunk: &[dag::NodeIndex]) -> Vec<St
         match thread::Builder::new()
             .name(format!("bee-{}", name))
             .spawn(move || -> Option<String> {
-                tasks::run_task(task, false).err().map(|e| e.to_string())
+                tasks::run_task(task, false, false).err().map(|e| e.to_string())
             }) {
             Ok(handle) => handles.push((name, handle)),
             Err(err) => {

@@ -76,9 +76,19 @@ pub fn run_process(
     }
 
     let start = Instant::now();
+    let interactive = context.options.interactive_tty;
     let mut child = cmd
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stdin(Stdio::inherit())
+        .stdout(if interactive {
+            Stdio::inherit()
+        } else {
+            Stdio::piped()
+        })
+        .stderr(if interactive {
+            Stdio::inherit()
+        } else {
+            Stdio::piped()
+        })
         .spawn()
         .map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
@@ -95,8 +105,20 @@ pub fn run_process(
             }
         })?;
 
+    if interactive {
+        let status = wait_for_exit(&mut child, &context.task_name, context.options.timeout)?;
+        let duration = start.elapsed();
+        return Ok(ExecutionResult {
+            success: status.success(),
+            exit_code: status.code().unwrap_or(-1),
+            stdout: String::new(),
+            stderr: String::new(),
+            duration,
+        });
+    }
+
     // Drain both pipes concurrently while streaming them to the terminal.
-    // Streaming keeps interactive prompts visible (sudo/ssh) and still captures
+    // Streaming keeps output visible in real time and still captures
     // full output for logs. Pipe draining prevents deadlocks on full buffers.
     let stdout_pipe = child.stdout.take();
     let stderr_pipe = child.stderr.take();
@@ -104,7 +126,6 @@ pub fn run_process(
     let task_err = context.task_name.clone();
     let stdout_thread = thread::spawn(move || tee_reader(stdout_pipe, &task_out));
     let stderr_thread = thread::spawn(move || tee_reader(stderr_pipe, &task_err));
-
     let wait_result = wait_for_exit(&mut child, &context.task_name, context.options.timeout);
     let stdout = stdout_thread.join().unwrap_or_default();
     let stderr = stderr_thread.join().unwrap_or_default();

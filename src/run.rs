@@ -32,14 +32,14 @@ pub fn run_all() -> Result<()> {
     Ok(())
 }
 
-pub fn run_task(name: String, force: bool) -> Result<()> {
+pub fn run_task(name: String, force: bool, interactive: bool) -> Result<()> {
     let task_file = crate::safety::safe_path("bee/tasks", "task", &name)?
         .with_extension("yml");
     let content = crate::file::get_file_content(&task_file.to_string_lossy())
         .map_err(|_| anyhow::anyhow!("task '{}' not found; run 'bee task list'", name))?;
     let task = parser::read_task_from_string(&content, &name)?;
 
-    tasks::run_task(task, force)
+    tasks::run_task(task, force, interactive)
 }
 
 /// Print the work a task run would perform without executing anything.
