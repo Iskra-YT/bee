@@ -115,6 +115,37 @@ pub fn program_exists(program: &str) -> bool {
     false
 }
 
+/// Resolve a program name to the file that will actually be launched.
+///
+/// On Windows a bare name such as `python` may correspond to `python.exe`,
+/// `python.cmd`, etc. `std::process::Command` does not apply `PATHEXT`, so the
+/// discovery result is passed to it explicitly. When nothing is found the
+/// original name is returned so the spawn error remains informative.
+pub fn resolve_executable(program: &str) -> String {
+    let program = program.trim();
+    if program.is_empty() {
+        return program.to_string();
+    }
+    let extensions = path_extensions();
+    let names = invocation_names(program, &extensions);
+
+    if is_path_like(program) {
+        return names
+            .into_iter()
+            .find(|name| Path::new(name).is_file())
+            .unwrap_or_else(|| program.to_string());
+    }
+
+    if let Some(path_var) = env::var_os("PATH") {
+        for dir in env::split_paths(&path_var) {
+            if let Some(found) = names.iter().find(|name| dir.join(name).is_file()) {
+                return dir.join(found).to_string_lossy().to_string();
+            }
+        }
+    }
+    program.to_string()
+}
+
 /// Names to probe for a candidate, including Windows executable extensions.
 fn invocation_names(program: &str, extensions: &[String]) -> Vec<String> {
     let mut names = vec![program.to_string()];

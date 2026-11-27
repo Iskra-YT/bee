@@ -10,6 +10,18 @@ pub enum GraphFormat {
     Mermaid,
 }
 
+pub fn parse_format(value: &str) -> anyhow::Result<GraphFormat> {
+    match value {
+        "tree" => Ok(GraphFormat::Tree),
+        "dot" => Ok(GraphFormat::Dot),
+        "mermaid" => Ok(GraphFormat::Mermaid),
+        other => Err(anyhow::anyhow!(
+            "unknown graph format '{}'; expected tree, dot, or mermaid",
+            other
+        )),
+    }
+}
+
 pub fn render_pipeline_graph(name: &str, format: GraphFormat) -> anyhow::Result<String> {
     let content = file::get_file_content(&format!("bee/pipelines/{}.yml", name))?;
     let pipeline = reader::read_pipeline_from_string(&content)?;

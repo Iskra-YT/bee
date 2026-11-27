@@ -74,7 +74,7 @@ fn validate_interpreter_candidates(task: &str, candidates: &[String]) -> Result<
 }
 
 #[derive(Serialize, Deserialize, Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 struct PlatformOverrideFields {
     #[serde(skip_serializing_if = "Option::is_none")]
     executor: Option<String>,
@@ -94,6 +94,10 @@ struct PlatformOverrideFields {
     working_dir: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     env: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timeout: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    inherit_env: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -110,6 +114,8 @@ pub struct PlatformOverride {
     pub script: Option<String>,
     pub working_dir: Option<String>,
     pub env: Option<BTreeMap<String, String>>,
+    pub timeout: Option<String>,
+    pub inherit_env: Option<bool>,
 }
 
 impl From<PlatformOverrideFields> for PlatformOverride {
@@ -126,6 +132,8 @@ impl From<PlatformOverrideFields> for PlatformOverride {
             script: fields.script,
             working_dir: fields.working_dir,
             env: fields.env,
+            timeout: fields.timeout,
+            inherit_env: fields.inherit_env,
         }
     }
 }
@@ -145,6 +153,8 @@ impl From<PlatformOverride> for PlatformOverrideFields {
             script: value.script,
             working_dir: value.working_dir,
             env: value.env,
+            timeout: value.timeout,
+            inherit_env: value.inherit_env,
         }
     }
 }
@@ -165,7 +175,7 @@ impl PlatformOverride {
 }
 
 #[derive(Serialize, Deserialize, Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 struct TaskFields {
     name: String,
     run: Option<String>,
@@ -179,6 +189,10 @@ struct TaskFields {
     working_dir: Option<String>,
     env: Option<BTreeMap<String, String>>,
     platforms: Option<BTreeMap<String, PlatformOverride>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timeout: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    inherit_env: Option<bool>,
     #[serde(skip_serializing_if = "is_false")]
     legacy: bool,
 }
@@ -200,6 +214,8 @@ pub struct Task {
     pub working_dir: Option<String>,
     pub env: Option<BTreeMap<String, String>>,
     pub platforms: Option<BTreeMap<String, PlatformOverride>>,
+    pub timeout: Option<String>,
+    pub inherit_env: Option<bool>,
     pub legacy: bool,
 }
 
@@ -220,6 +236,8 @@ impl From<TaskFields> for Task {
             working_dir: fields.working_dir,
             env: fields.env,
             platforms: fields.platforms,
+            timeout: fields.timeout,
+            inherit_env: fields.inherit_env,
             legacy: fields.legacy,
         }
     }
@@ -243,6 +261,8 @@ impl From<Task> for TaskFields {
             working_dir: value.working_dir,
             env: value.env,
             platforms: value.platforms,
+            timeout: value.timeout,
+            inherit_env: value.inherit_env,
             legacy: value.legacy,
         }
     }
@@ -251,6 +271,19 @@ impl From<Task> for TaskFields {
 impl Task {
     pub fn validate(&self) -> Result<()> {
         let executor = self.effective_executor();
+
+        if let Some(timeout) = &self.timeout {
+            crate::time::parse_duration(timeout)
+                .map_err(|e| anyhow!("Task '{}': {}", self.name, e))?;
+        }
+        if let Some(dir) = &self.working_dir {
+            if dir.trim().is_empty() {
+                return Err(anyhow!(
+                    "Task '{}': 'working_dir' cannot be empty",
+                    self.name
+                ));
+            }
+        }
 
         if self.executor.is_none()
             && self.run.is_some()
@@ -494,6 +527,7 @@ impl Task {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct Pipeline {
     pub name: String,
     pub tasks: Vec<String>,
@@ -502,6 +536,7 @@ pub struct Pipeline {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct Rule {
     pub name: String,
     pub task: String,
@@ -570,6 +605,7 @@ pub struct RuleConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct Dependency {
     pub name: String,
     #[serde(rename = "type")]
@@ -587,6 +623,7 @@ pub struct Dependency {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct Subsystem {
     pub name: String,
     pub path: String,
@@ -595,12 +632,14 @@ pub struct Subsystem {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct SubsystemsConfig {
     #[serde(default)]
     pub subsystems: Vec<Subsystem>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct DepsConfig {
     pub dependencies: Vec<Dependency>,
 }

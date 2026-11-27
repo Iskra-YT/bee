@@ -1,4 +1,5 @@
 use std::fmt;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub enum ExecutionError {
@@ -39,6 +40,9 @@ pub enum ExecutionError {
         task: String,
         program: String,
         source: std::io::Error,
+    },
+    Timeout {
+        duration: Duration,
     },
     Io {
         task: String,
@@ -93,6 +97,9 @@ impl fmt::Display for ExecutionError {
                     "Task '{}': failed to launch '{}': {}",
                     task, program, source
                 )
+            }
+            ExecutionError::Timeout { duration } => {
+                write!(f, "task timed out after {:?}", duration)
             }
             ExecutionError::Io {
                 task,

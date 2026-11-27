@@ -16,6 +16,32 @@ pub fn check_bee_directory() -> bool {
     is_valid_system_at(Path::new("."))
 }
 
+/// Detailed variant used by commands: tells the user what is actually wrong
+/// instead of suggesting a destructive `bee init` for every failure.
+pub fn ensure_bee_directory() -> Result<()> {
+    let root = Path::new("bee");
+    if !root.exists() {
+        return Err(anyhow::anyhow!(
+            "no bee project in this directory; run 'bee init' to create one"
+        ));
+    }
+    let init = root.join("system/init");
+    let hash = root.join("system/hash/init");
+    if !init.exists() || !hash.exists() {
+        return Err(anyhow::anyhow!(
+            "bee project is incomplete (missing bee/system/init or its hash); restore it from a backup or run 'bee init --yes' to replace it"
+        ));
+    }
+    let content = fs::read_to_string(&init).unwrap_or_default();
+    let stored = fs::read_to_string(&hash).unwrap_or_default();
+    if hash::hash_string(content.as_str()) != stored.trim() {
+        return Err(anyhow::anyhow!(
+            "bee/system/init failed its integrity check; inspect bee/system/init and bee/system/hash/init, or restore a backup"
+        ));
+    }
+    Ok(())
+}
+
 pub fn is_subsystem() -> bool {
     Path::new("bee/system/parent").exists()
 }

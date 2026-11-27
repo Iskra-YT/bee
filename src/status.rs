@@ -1,5 +1,6 @@
 use crate::file;
 use crate::parser::reader::config as reader;
+use crate::run::cache;
 use anyhow::Result;
 
 pub fn show_status() -> Result<()> {
@@ -24,8 +25,7 @@ pub fn show_status() -> Result<()> {
                         println!("    subpipelines: {}", pipe.pipelines.join(", "));
                     }
                     for task_name in &pipe.tasks {
-                        let status = get_task_status(task_name);
-                        println!("    {}{}", task_name, status);
+                        println!("    {}{}", task_name, get_task_status(task_name));
                     }
                 }
             }
@@ -43,23 +43,22 @@ pub fn show_status() -> Result<()> {
 }
 
 fn get_task_status(name: &str) -> String {
-    let cache_path = format!("bee/cache/{}/last_run", name);
-    if std::path::Path::new(&cache_path).exists() {
-        if let Ok(hash) = std::fs::read_to_string(&cache_path) {
-            if !hash.is_empty() {
-                return format!(" [cached: {}]", &hash[..8]);
-            }
+    match std::fs::read_to_string(cache::last_run_path(name)) {
+        Ok(hash) if !hash.trim().is_empty() => {
+            let short: String = hash.trim().chars().take(8).collect();
+            format!(" [cached: {}]", short)
         }
+        _ => String::from(" [pending]"),
     }
-    String::from(" [pending]")
 }
 
 fn count_cached_tasks(tasks: &[crate::parser::TaskConfig]) -> usize {
     tasks
         .iter()
         .filter(|t| {
-            let path = format!("bee/cache/{}/last_run", t.name);
-            std::path::Path::new(&path).exists()
+            std::fs::read_to_string(cache::last_run_path(&t.name))
+                .map(|content| !content.trim().is_empty())
+                .unwrap_or(false)
         })
         .count()
 }

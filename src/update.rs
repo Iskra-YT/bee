@@ -1,3 +1,9 @@
+//! Fail-closed self-update from GitHub Releases.
+//!
+//! An update is only installed when a `SHA256SUMS` asset is present and the
+//! downloaded archive matches it. The new binary is smoke-tested both before
+//! and after the swap; a failed smoke test restores the previous executable.
+
 use anyhow::{anyhow, Result};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -22,23 +28,23 @@ pub fn run_update() -> Result<()> {
 
     let asset_name = format!("bee-{}-{}.{}", sha, platform.artifact_suffix, platform.ext);
     let asset_url = find_asset_url(&release, &asset_name)?;
-    let checksums_url = find_asset_url(&release, "SHA256SUMS").ok();
 
+    // Fail closed: without a signed-off checksum list there is no update.
+    let checksums_url = find_asset_url(&release, "SHA256SUMS")
+        .map_err(|e| anyhow!("refusing to update: {}", e))?;
     let tmp_dir = make_tmp_dir()?;
     let archive_path = tmp_dir.join(&asset_name);
     let checksums_path = tmp_dir.join("SHA256SUMS");
 
+    println!("  Downloading SHA256SUMS...");
+    download_file(&checksums_url, &checksums_path)?;
+    let expected = checksum_for(&fs::read_to_string(&checksums_path)?, &asset_name)?;
+    println!("  Expected SHA-256: {}", expected);
+
     println!("  Downloading {}...", asset_name);
     download_file(&asset_url, &archive_path)?;
-
-    if let Some(url) = checksums_url {
-        println!("  Downloading SHA256SUMS...");
-        download_file(&url, &checksums_path)?;
-        verify_checksum(&archive_path, &checksums_path, &asset_name)?;
-        println!("  Checksum verified.");
-    } else {
-        println!("  Warning: SHA256SUMS asset not found; skipping checksum verification.");
-    }
+    verify_checksum(&archive_path, &checksums_path, &asset_name)?;
+    println!("  Checksum verified.");
 
     let extract_dir = tmp_dir.join("extract");
     fs::create_dir_all(&extract_dir)?;
@@ -50,17 +56,27 @@ pub fn run_update() -> Result<()> {
         "bee"
     };
     let extracted_binary = find_extracted_binary(&extract_dir, binary_name)?;
-    install_binary(&extracted_binary, &current_exe)?;
+    println!("  Smoke-testing the downloaded binary...");
+    smoketest(&extracted_binary, Some(&sha))?;
 
+    let installed = install_binary(&extracted_binary, &current_exe, Some(&sha))?;
     let _ = fs::remove_dir_all(&tmp_dir);
 
-    println!(
-        "  bee updated successfully to {} (release {}, commit {})",
-        current_exe.display(),
-        tag,
-        sha
-    );
-    println!("  run 'bee version' to confirm");
+    if installed {
+        println!(
+            "  bee updated successfully to {} (release {}, commit {})",
+            current_exe.display(),
+            tag,
+            sha
+        );
+        println!("  run 'bee version' to confirm");
+    } else {
+        println!(
+            "  The new binary is staged at '{}' because Windows keeps the running executable locked.",
+            staged_path(&current_exe).display()
+        );
+        println!("  Run '{}' once to finish the update.", helper_path(&current_exe).display());
+    }
     Ok(())
 }
 
@@ -183,11 +199,7 @@ fn curl_get(url: &str) -> Result<String> {
         "-H",
         "User-Agent: bee-updater",
     ]);
-    if let Ok(token) = std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("GH_TOKEN")) {
-        if !token.trim().is_empty() {
-            cmd.args(["-H", &format!("Authorization: Bearer {}", token)]);
-        }
-    }
+    add_auth_header(&mut cmd);
     cmd.arg(url);
     let output = cmd.output().map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
@@ -207,16 +219,20 @@ fn curl_get(url: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-fn download_file(url: &str, dest: &Path) -> Result<()> {
-    let mut cmd = Command::new("curl");
-    cmd.args(["-fL", "--progress-bar", "-o"]);
-    cmd.arg(dest);
-    cmd.args(["-H", "User-Agent: bee-updater"]);
+fn add_auth_header(cmd: &mut Command) {
     if let Ok(token) = std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("GH_TOKEN")) {
         if !token.trim().is_empty() {
             cmd.args(["-H", &format!("Authorization: Bearer {}", token)]);
         }
     }
+}
+
+fn download_file(url: &str, dest: &Path) -> Result<()> {
+    let mut cmd = Command::new("curl");
+    cmd.args(["-fL", "--progress-bar", "-o"]);
+    cmd.arg(dest);
+    cmd.args(["-H", "User-Agent: bee-updater"]);
+    add_auth_header(&mut cmd);
     cmd.arg(url);
     cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
     let status = cmd.status().map_err(|e| {
@@ -237,23 +253,33 @@ fn download_file(url: &str, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-fn verify_checksum(archive: &Path, checksums_file: &Path, asset_name: &str) -> Result<()> {
-    let checksums = fs::read_to_string(checksums_file)?;
+/// Look up the expected digest in SHA256SUMS. Missing entries are an error.
+pub fn checksum_for(checksums: &str, asset_name: &str) -> Result<String> {
     let expected = checksums
         .lines()
         .filter_map(|line| {
             let mut parts = line.split_whitespace();
             let hash = parts.next()?;
-            let name = parts.next()?;
-            let name = name.trim_start_matches('*');
+            let name = parts.next()?.trim_start_matches('*');
             if name == asset_name {
                 Some(hash.to_string())
             } else {
                 None
             }
         })
-        .next()
-        .ok_or_else(|| anyhow!("No checksum found for {} in SHA256SUMS", asset_name))?;
+        .find(|hash| hash.len() == 64 && hash.chars().all(|c| c.is_ascii_hexdigit()))
+        .ok_or_else(|| {
+            anyhow!(
+                "SHA256SUMS has no valid 64-character SHA-256 entry for '{}'",
+                asset_name
+            )
+        })?;
+    Ok(expected)
+}
+
+pub fn verify_checksum(archive: &Path, checksums_file: &Path, asset_name: &str) -> Result<()> {
+    let checksums = fs::read_to_string(checksums_file)?;
+    let expected = checksum_for(&checksums, asset_name)?;
 
     let mut file = fs::File::open(archive)?;
     let mut hasher = Sha256::new();
@@ -279,26 +305,17 @@ fn verify_checksum(archive: &Path, checksums_file: &Path, asset_name: &str) -> R
 }
 
 fn extract_archive(archive: &Path, dest: &Path, ext: &str) -> Result<()> {
-    let status = if ext == "zip" {
-        Command::new("unzip")
-            .args(["-o"])
-            .arg(archive)
-            .arg("-d")
-            .arg(dest)
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()
+    let mut cmd = if ext == "zip" {
+        let mut cmd = Command::new("unzip");
+        cmd.arg("-o").arg(archive).arg("-d").arg(dest);
+        cmd
     } else {
-        Command::new("tar")
-            .args(["-xzf"])
-            .arg(archive)
-            .arg("-C")
-            .arg(dest)
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()
+        let mut cmd = Command::new("tar");
+        cmd.arg("-xzf").arg(archive).arg("-C").arg(dest);
+        cmd
     };
-    let status = status.map_err(|e| anyhow!("Failed to extract archive: {}", e))?;
+    cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+    let status = cmd.status().map_err(|e| anyhow!("Failed to extract archive: {}", e))?;
     if !status.success() {
         return Err(anyhow!(
             "Archive extraction failed (exit code {})",
@@ -309,20 +326,27 @@ fn extract_archive(archive: &Path, dest: &Path, ext: &str) -> Result<()> {
 }
 
 fn find_extracted_binary(extract_dir: &Path, binary_name: &str) -> Result<PathBuf> {
-    // Common layout: <artifact>/bee
-    let direct = extract_dir.join(binary_name);
-    if direct.is_file() {
-        return Ok(direct);
-    }
-    for entry in fs::read_dir(extract_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            let candidate = path.join(binary_name);
-            if candidate.is_file() {
-                return Ok(candidate);
-            }
+    let candidates = vec![extract_dir.join(binary_name)]
+        .into_iter()
+        .chain(
+            fs::read_dir(extract_dir)?
+                .filter_map(Result::ok)
+                .filter(|entry| entry.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                .map(|entry| entry.path().join(binary_name)),
+        );
+    let canonical_dir = fs::canonicalize(extract_dir)?;
+    for candidate in candidates {
+        if !candidate.is_file() {
+            continue;
         }
+        let canonical = fs::canonicalize(&candidate)?;
+        if !canonical.starts_with(&canonical_dir) {
+            return Err(anyhow!(
+                "extracted binary '{}' escapes the extraction directory",
+                candidate.display()
+            ));
+        }
+        return Ok(canonical);
     }
     Err(anyhow!(
         "Extracted binary '{}' not found in {}",
@@ -331,27 +355,168 @@ fn find_extracted_binary(extract_dir: &Path, binary_name: &str) -> Result<PathBu
     ))
 }
 
-fn install_binary(new_binary: &Path, current_exe: &Path) -> Result<()> {
+/// Run `bee version` on a candidate binary. A release binary must report the
+/// commit SHA it was built from; unknown or missing output is a hard failure.
+pub fn smoketest(binary: &Path, expected_sha: Option<&str>) -> Result<()> {
+    let output = Command::new(binary)
+        .arg("version")
+        .output()
+        .map_err(|e| anyhow!("smoke test could not start '{}': {}", binary.display(), e))?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "smoke test failed: '{} version' exited with code {}",
+            binary.display(),
+            output.status.code().unwrap_or(-1)
+        ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let reported = stdout.trim();
+    if reported.is_empty() {
+        return Err(anyhow!(
+            "smoke test failed: '{} version' printed nothing",
+            binary.display()
+        ));
+    }
+    if let Some(expected) = expected_sha {
+        let found = reported
+            .split_whitespace()
+            .find(|token| token.len() == 40 && token.chars().all(|c| c.is_ascii_hexdigit()));
+        match found {
+            Some(found) if found.eq_ignore_ascii_case(expected) => Ok(()),
+            Some(found) => Err(anyhow!(
+                "smoke test failed: binary reports commit {}, expected {}",
+                found,
+                expected
+            )),
+            None => Err(anyhow!(
+                "smoke test failed: binary reports '{}', expected commit {}",
+                reported,
+                expected
+            )),
+        }
+    } else {
+        Ok(())
+    }
+}
+
+fn staged_path(current_exe: &Path) -> PathBuf {
+    let name = current_exe
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| "bee".to_string());
+    let stem = name.rsplit_once('.').map(|(stem, _)| stem).unwrap_or(&name);
+    current_exe.with_file_name(format!("{}-new.exe", stem))
+}
+
+fn helper_path(current_exe: &Path) -> PathBuf {
+    current_exe.with_file_name("bee.cmd")
+}
+
+/// Write the Windows helper that completes a staged update after the running
+/// executable is closed.
+pub fn write_windows_helper(current_exe: &Path) -> Result<PathBuf> {
+    let exe_name = current_exe
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .ok_or_else(|| anyhow!("cannot determine executable name"))?;
+    let staged_name = staged_path(current_exe)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .ok_or_else(|| anyhow!("cannot determine staged binary name"))?;
+    let helper = helper_path(current_exe);
+    let script = format!(
+        "@echo off\nsetlocal\nset \"BEE_DIR=%~dp0\"\n\
+         if not exist \"%BEE_DIR%{staged}\" (\n  echo bee: no staged update found >&2\n  exit /b 1\n)\n\
+         move /Y \"%BEE_DIR%{staged}\" \"%BEE_DIR%{exe}\" >nul\n\
+         if errorlevel 1 (\n  echo bee: could not replace {exe}; close bee and run this helper again >&2\n  exit /b 1\n)\n\
+         \"%BEE_DIR%{exe}\" %*\n",
+        staged = staged_name,
+        exe = exe_name
+    );
+    fs::write(&helper, script)?;
+    Ok(helper)
+}
+
+/// Install a verified binary. Returns `false` when the update was staged for
+/// the Windows helper because the running executable could not be replaced.
+pub fn install_binary(new_binary: &Path, current_exe: &Path, expected_sha: Option<&str>) -> Result<bool> {
+    let parent = current_exe
+        .parent()
+        .ok_or_else(|| anyhow!("cannot determine the directory of the current executable"))?;
+    let stamp = chrono::Utc::now().timestamp_millis();
+    let temp = parent.join(format!(
+        ".bee-update-{}-{}",
+        std::process::id(),
+        stamp
+    ));
+    let backup = parent.join(format!(
+        "{}.old-{}",
+        current_exe
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "bee".to_string()),
+        stamp
+    ));
+
+    fs::copy(new_binary, &temp)?;
+    set_executable(&temp)?;
+    smoketest(&temp, expected_sha)?;
     println!("  Installing to {}...", current_exe.display());
-    let backup = current_exe.with_extension("old");
 
-    // Replace existing binary. On Windows, renaming running exe is allowed; removing may not be.
-    if backup.exists() {
-        let _ = fs::remove_file(&backup);
+    if let Err(rename_err) = fs::rename(current_exe, &backup) {
+        #[cfg(windows)]
+        {
+            // The running exe is locked on Windows. Stage it and let bee.cmd
+            // finish the swap on the next invocation.
+            fs::copy(&temp, staged_path(current_exe))?;
+            let helper = write_windows_helper(current_exe)?;
+            fs::remove_file(&temp)?;
+            println!("  Could not replace the running executable: {}", rename_err);
+            println!("  Run '{}' to finish the update.", helper.display());
+            return Ok(false);
+        }
+        #[cfg(not(windows))]
+        {
+            fs::remove_file(&temp)?;
+            return Err(anyhow!(
+                "could not back up the current executable: {}; bee was not modified",
+                rename_err
+            ));
+        }
     }
-    if current_exe.exists() {
-        fs::rename(current_exe, &backup).or_else(|_| {
-            fs::remove_file(current_exe)?;
-            Ok::<(), std::io::Error>(())
-        })?;
+
+    if let Err(swap_err) = fs::rename(&temp, current_exe) {
+        // Restore the original binary before reporting the failure.
+        let rollback = fs::rename(&backup, current_exe);
+        let _ = fs::remove_file(&temp);
+        return Err(anyhow!(
+            "could not install the new binary: {}; rollback: {:?}",
+            swap_err,
+            rollback
+        ));
     }
 
-    fs::copy(new_binary, current_exe)?;
-    set_executable(current_exe)?;
+    if let Err(err) = smoketest(current_exe, expected_sha) {
+        // Post-swap failure: restore the previous binary.
+        let _ = fs::remove_file(current_exe);
+        if let Err(rollback_err) = fs::rename(&backup, current_exe) {
+            return Err(anyhow!(
+                "new binary failed its smoke test ({}) AND rollback failed ({}); restore the backup at {} manually",
+                err,
+                rollback_err,
+                backup.display()
+            ));
+        }
+        set_executable(current_exe)?;
+        return Err(anyhow!(
+            "new binary failed its smoke test ({}); the previous executable was restored",
+            err
+        ));
+    }
 
-    // Best effort cleanup of backup
+    // Best effort: the update already succeeded and was smoke-tested.
     let _ = fs::remove_file(&backup);
-    Ok(())
+    Ok(true)
 }
 
 fn set_executable(path: &Path) -> Result<()> {
@@ -417,5 +582,27 @@ mod tests {
             _ => panic!("expected an array"),
         };
         assert!(pick_latest_release(&releases).is_none());
+    }
+
+    #[test]
+    fn checksum_lookup_requires_a_valid_entry() {
+        let sums = "abc  other.tar.gz\ndeadbeef  bee.tar.gz\n";
+        assert!(checksum_for(sums, "bee.tar.gz").is_err());
+        let hash = "a".repeat(64);
+        let sums = format!("{}  bee.tar.gz\n", hash);
+        assert_eq!(checksum_for(&sums, "bee.tar.gz").unwrap(), hash);
+        assert!(checksum_for(&sums, "missing.tar.gz").is_err());
+    }
+
+    #[test]
+    fn windows_helper_mentions_both_binaries() {
+        let exe = Path::new("/tmp/tools/bee.exe");
+        assert_eq!(staged_path(exe), PathBuf::from("/tmp/tools/bee-new.exe"));
+        assert_eq!(helper_path(exe), PathBuf::from("/tmp/tools/bee.cmd"));
+        let dir = tempfile::tempdir().unwrap();
+        let helper = write_windows_helper(&dir.path().join("bee.exe")).unwrap();
+        let content = fs::read_to_string(helper).unwrap();
+        assert!(content.contains("bee-new.exe"));
+        assert!(content.contains("bee.exe"));
     }
 }

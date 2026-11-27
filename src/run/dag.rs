@@ -11,10 +11,12 @@ pub fn build_dag(config: crate::parser::Pipeline) -> Result<(Vec<NodeIndex>, DiG
     let mut tasks: Vec<Task> = Vec::new();
 
     for task_name in &config.tasks {
-        let content = file::get_file_content(&format!("bee/tasks/{}.yml", task_name))
-            .map_err(|e| anyhow::anyhow!("Failed to read task '{}': {}", task_name, e))?;
+        let path = crate::safety::safe_path("bee/tasks", "task", task_name)?
+            .with_extension("yml");
+        let content = file::get_file_content(&path.to_string_lossy())
+            .map_err(|e| anyhow::anyhow!("failed to read task '{}': {}", task_name, e))?;
         let task = reader::read_task_from_string(&content, task_name)
-            .map_err(|e| anyhow::anyhow!("Failed to read task '{}': {}", task_name, e))?;
+            .map_err(|e| anyhow::anyhow!("invalid task '{}': {}", task_name, e))?;
         tasks.push(task);
     }
 
@@ -29,17 +31,26 @@ pub fn build_dag(config: crate::parser::Pipeline) -> Result<(Vec<NodeIndex>, DiG
                 if let Some(dep_index) = tasks.iter().position(|t| &t.name == dep) {
                     graph.add_edge(node_indices[dep_index], node_indices[i], ());
                 } else {
-                    eprintln!(
-                        "Warning: task '{}' depends on unknown task '{}'",
-                        task.name, dep
-                    );
+                    return Err(anyhow::anyhow!(
+                        "task '{}' depends on unknown task '{}' (add it to the pipeline or fix depends_on)",
+                        task.name,
+                        dep
+                    ));
                 }
             }
         }
     }
 
     let topo_order = toposort(&graph, None).map_err(|cycle| {
-        anyhow::anyhow!("Cycle detected in task dependencies: {:?}", cycle.node_id())
+        let node = cycle.node_id();
+        let name = graph
+            .node_weight(node)
+            .map(|task| task.name.clone())
+            .unwrap_or_else(|| format!("node {:?}", node));
+        anyhow::anyhow!(
+            "cycle detected in task dependencies at task '{}'",
+            name
+        )
     })?;
 
     Ok((topo_order, graph))

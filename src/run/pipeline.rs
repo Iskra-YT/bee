@@ -47,19 +47,24 @@ fn run_pipeline_recursive(
 
     seen.pop();
 
-    if !sub_failed.is_empty() {
-        eprintln!(
-            "\x1b[31mPipeline '{}' failed:\x1b[0m subpipeline(s) failed: {}",
-            config.name,
+    // A failed subpipeline must not cancel independent work in this pipeline,
+    // but the overall run still fails at the end.
+    let sub_failure = if sub_failed.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "subpipeline(s) failed: {}",
             sub_failed.join(", ")
-        );
-        return Err(anyhow::anyhow!(
-            "Pipeline '{}' failed: subpipeline(s) failed",
-            config.name
-        ));
-    }
+        ))
+    };
 
-    run_pipeline_tasks(config)
+    let result = run_pipeline_tasks(config);
+    match (result, sub_failure) {
+        (Err(err), Some(sub)) => Err(anyhow::anyhow!("{}; {}", err, sub)),
+        (Err(err), None) => Err(err),
+        (Ok(()), Some(sub)) => Err(anyhow::anyhow!("pipeline failed: {}", sub)),
+        (Ok(()), None) => Ok(()),
+    }
 }
 
 fn run_pipeline_tasks(config: crate::parser::Pipeline) -> Result<()> {
@@ -67,15 +72,15 @@ fn run_pipeline_tasks(config: crate::parser::Pipeline) -> Result<()> {
     let order = parallel::find_parallel_groups(&graph, &task_order);
 
     let total: usize = order.iter().map(|g| g.len()).sum();
-    println!(
+    crate::ui::info(format!(
         "Pipeline: {} ({} tasks, {} group(s))",
         config.name,
         total,
         order.len()
-    );
+    ));
 
     let mut failed: HashSet<String> = HashSet::new();
-    let mut skipped: Vec<String> = vec![];
+    let mut skipped: HashSet<String> = HashSet::new();
 
     for (i, layer) in order.iter().enumerate() {
         let filtered: Vec<dag::NodeIndex> = layer
@@ -86,7 +91,9 @@ fn run_pipeline_tasks(config: crate::parser::Pipeline) -> Result<()> {
                     .neighbors_directed(node, petgraph::Direction::Incoming)
                     .map(|n| graph[n].name.clone())
                     .collect();
-                !deps.iter().any(|d| failed.contains(d))
+                !deps
+                    .iter()
+                    .any(|d| failed.contains(d) || skipped.contains(d))
             })
             .collect();
 
@@ -98,12 +105,12 @@ fn run_pipeline_tasks(config: crate::parser::Pipeline) -> Result<()> {
 
         if !skipped_in_layer.is_empty() {
             for s in &skipped_in_layer {
-                println!(
-                    "  [{}/{}] \x1b[33m{}: SKIPPED\x1b[0m (dependency failed)",
+                crate::ui::info(format!(
+                    "[{}/{}] {} (dependency failed)",
                     i + 1,
                     order.len(),
-                    s
-                );
+                    crate::ui::yellow(&format!("{}: SKIPPED", s))
+                ));
             }
             skipped.extend(skipped_in_layer);
         }
@@ -114,14 +121,19 @@ fn run_pipeline_tasks(config: crate::parser::Pipeline) -> Result<()> {
 
         let names: Vec<String> = filtered.iter().map(|&n| graph[n].name.clone()).collect();
         if filtered.len() > 1 {
-            println!(
-                "  [{}/{}] {} (parallel)",
+            crate::ui::info(format!(
+                "[{}/{}] {} (parallel)",
                 i + 1,
                 order.len(),
                 names.join(", ")
-            );
+            ));
         } else {
-            println!("  [{}/{}] {}", i + 1, order.len(), names.join(", "));
+            crate::ui::info(format!(
+                "[{}/{}] {}",
+                i + 1,
+                order.len(),
+                names.join(", ")
+            ));
         }
 
         let layer_failed = parallel::run_parallel_tasks(&graph, filtered);
@@ -130,18 +142,24 @@ fn run_pipeline_tasks(config: crate::parser::Pipeline) -> Result<()> {
 
     println!();
     if failed.is_empty() {
-        println!("Pipeline '{}' completed successfully", config.name);
+        crate::ui::info(format!("Pipeline '{}' completed successfully", config.name));
         Ok(())
     } else {
         let mut fail_list: Vec<String> = failed.into_iter().collect();
         fail_list.sort();
-        eprintln!(
-            "\x1b[31mPipeline '{}' failed:\x1b[0m {}",
-            config.name,
+        crate::ui::einfo(format!(
+            "{} {}",
+            crate::ui::red(&format!("Pipeline '{}' failed:", config.name)),
             fail_list.join(", ")
-        );
+        ));
         if !skipped.is_empty() {
-            eprintln!("\x1b[33mSkipped:\x1b[0m {}", skipped.join(", "));
+            let mut skipped: Vec<String> = skipped.into_iter().collect();
+            skipped.sort();
+            crate::ui::einfo(format!(
+                "{} {}",
+                crate::ui::yellow("Skipped:"),
+                skipped.join(", ")
+            ));
         }
         Err(anyhow::anyhow!(
             "Pipeline '{}' failed: {}",

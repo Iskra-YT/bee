@@ -151,6 +151,109 @@ pub fn modify_pipeline(
     Ok(())
 }
 
+fn trigger_mapping(trigger_type: &str) -> serde_yaml::Mapping {
+    let mut mapping = serde_yaml::Mapping::new();
+    mapping.insert(
+        Value::String("type".into()),
+        Value::String(trigger_type.into()),
+    );
+    mapping
+}
+
+fn required(params: &mut std::collections::HashMap<String, String>, key: &str) -> Result<String> {
+    let value = params
+        .remove(key)
+        .ok_or_else(|| anyhow::anyhow!("--trigger-param {}=... is required", key))?;
+    if value.trim().is_empty() {
+        return Err(anyhow::anyhow!(
+            "--trigger-param {} cannot be empty",
+            key
+        ));
+    }
+    Ok(value)
+}
+
+fn csv_param(params: &mut std::collections::HashMap<String, String>, key: &str) -> Result<Value> {
+    let value = required(params, key)?;
+    let items: Vec<Value> = value
+        .split(',')
+        .map(|item| Value::String(item.trim().to_string()))
+        .filter(|item| !matches!(item, Value::String(s) if s.is_empty()))
+        .collect();
+    if items.is_empty() {
+        return Err(anyhow::anyhow!("--trigger-param {} cannot be empty", key));
+    }
+    Ok(Value::Sequence(items))
+}
+
+fn build_trigger(trigger_type: &str, trigger_params: &[String]) -> Result<Value> {
+    let mut params: std::collections::HashMap<String, String> = trigger_params
+        .iter()
+        .map(|param| {
+            let mut parts = param.splitn(2, '=');
+            let key = parts.next().unwrap_or_default().to_string();
+            let value = parts.next().unwrap_or_default().to_string();
+            (key, value)
+        })
+        .collect();
+
+    let mut mapping = trigger_mapping(trigger_type);
+    match trigger_type {
+        "manual" | "always" => {}
+        "file_change" | "git_changed" | "checksum_changed" => {
+            let paths = csv_param(&mut params, "paths")?;
+            mapping.insert(Value::String("paths".into()), paths);
+        }
+        "task_completed" | "task_failed" | "dependency_changed"
+        | "parent_task_completed" | "parent_task_failed" => {
+            let task = required(&mut params, "task")?;
+            mapping.insert(Value::String("task".into()), Value::String(task));
+        }
+        "env_changed" => {
+            let vars = csv_param(&mut params, "vars")?;
+            mapping.insert(Value::String("vars".into()), vars);
+        }
+        "dependency_missing" => {
+            let path = required(&mut params, "path")?;
+            mapping.insert(Value::String("path".into()), Value::String(path));
+        }
+        "schedule" => {
+            let cron = required(&mut params, "cron")?;
+            crate::schedule::validate_expression(&cron)?;
+            mapping.insert(Value::String("cron".into()), Value::String(cron));
+        }
+        "git_tag" => {
+            if let Some(pattern) = params.remove("pattern") {
+                mapping.insert(Value::String("pattern".into()), Value::String(pattern));
+            }
+        }
+        "subtask_completed" | "subtask_failed" | "subtask_changed" => {
+            let subsystem = required(&mut params, "subsystem")?;
+            let task = required(&mut params, "task")?;
+            mapping.insert(Value::String("subsystem".into()), Value::String(subsystem));
+            mapping.insert(Value::String("task".into()), Value::String(task));
+        }
+        "subsystem_changed" => {
+            let subsystem = required(&mut params, "subsystem")?;
+            mapping.insert(Value::String("subsystem".into()), Value::String(subsystem));
+        }
+        other => return Err(anyhow::anyhow!("unknown trigger type: {}", other)),
+    }
+
+    if let Some(key) = params.keys().next() {
+        return Err(anyhow::anyhow!(
+            "unknown --trigger-param '{}' for trigger '{}'",
+            key,
+            trigger_type
+        ));
+    }
+
+    let value = Value::Mapping(mapping);
+    serde_yaml::from_value::<crate::parser::RuleTrigger>(value.clone())
+        .map_err(|e| anyhow::anyhow!("invalid trigger: {}", e))?;
+    Ok(value)
+}
+
 pub fn modify_rule(
     name: &str,
     task: Option<&str>,
@@ -168,121 +271,32 @@ pub fn modify_rule(
     }
 
     if let Some(tt) = trigger_type {
+        let trigger = build_trigger(tt, trigger_params)?;
         let mapping = doc
             .as_mapping_mut()
             .ok_or_else(|| anyhow::anyhow!("Invalid rule YAML"))?;
-
-        let mut params: std::collections::HashMap<String, String> = trigger_params
-            .iter()
-            .filter_map(|p| {
-                let mut parts = p.splitn(2, '=');
-                let key = parts.next()?.to_string();
-                let val = parts.next().unwrap_or("").to_string();
-                Some((key, val))
-            })
-            .collect();
-
-        let trigger = match tt {
-            "manual" => Value::Mapping(serde_yaml::Mapping::new()),
-            "always" => {
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(Value::String("type".into()), Value::String("always".into()));
-                Value::Mapping(m)
+        match mapping.get_mut(Value::String("triggers".into())) {
+            Some(Value::Sequence(seq)) => seq.push(trigger),
+            Some(_) => {
+                return Err(anyhow::anyhow!(
+                    "rule '{}' has a malformed 'triggers' field",
+                    name
+                ))
             }
-            "file_change" | "git_changed" | "checksum_changed" => {
-                let paths: Vec<Value> = params
-                    .remove("paths")
-                    .unwrap_or_default()
-                    .split(',')
-                    .filter(|s| !s.is_empty())
-                    .map(|s| Value::String(s.trim().into()))
-                    .collect();
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(Value::String("type".into()), Value::String(tt.into()));
-                m.insert(Value::String("paths".into()), Value::Sequence(paths));
-                Value::Mapping(m)
+            None => {
+                mapping.insert(
+                    Value::String("triggers".into()),
+                    Value::Sequence(vec![trigger]),
+                );
             }
-            "task_completed" | "task_failed" | "dependency_changed" => {
-                let task_name = params.remove("task").unwrap_or_default();
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(Value::String("type".into()), Value::String(tt.into()));
-                m.insert(Value::String("task".into()), Value::String(task_name));
-                Value::Mapping(m)
-            }
-            "env_changed" => {
-                let vars: Vec<Value> = params
-                    .remove("vars")
-                    .unwrap_or_default()
-                    .split(',')
-                    .filter(|s| !s.is_empty())
-                    .map(|s| Value::String(s.trim().into()))
-                    .collect();
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(Value::String("type".into()), Value::String(tt.into()));
-                m.insert(Value::String("vars".into()), Value::Sequence(vars));
-                Value::Mapping(m)
-            }
-            "dependency_missing" => {
-                let p = params.remove("path").unwrap_or_default();
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(Value::String("type".into()), Value::String(tt.into()));
-                m.insert(Value::String("path".into()), Value::String(p));
-                Value::Mapping(m)
-            }
-            "schedule" => {
-                let cron = params.remove("cron").unwrap_or_default();
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(Value::String("type".into()), Value::String(tt.into()));
-                m.insert(Value::String("cron".into()), Value::String(cron));
-                Value::Mapping(m)
-            }
-            "git_tag" => {
-                let pattern = params.remove("pattern");
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(Value::String("type".into()), Value::String(tt.into()));
-                if let Some(p) = pattern {
-                    m.insert(Value::String("pattern".into()), Value::String(p));
-                }
-                Value::Mapping(m)
-            }
-            "subtask_completed" | "subtask_failed" | "subtask_changed" => {
-                let subsystem = params.remove("subsystem").unwrap_or_default();
-                let task_name = params.remove("task").unwrap_or_default();
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(Value::String("type".into()), Value::String(tt.into()));
-                m.insert(Value::String("subsystem".into()), Value::String(subsystem));
-                m.insert(Value::String("task".into()), Value::String(task_name));
-                Value::Mapping(m)
-            }
-            "parent_task_completed" | "parent_task_failed" => {
-                let task_name = params.remove("task").unwrap_or_default();
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(Value::String("type".into()), Value::String(tt.into()));
-                m.insert(Value::String("task".into()), Value::String(task_name));
-                Value::Mapping(m)
-            }
-            "subsystem_changed" => {
-                let subsystem = params.remove("subsystem").unwrap_or_default();
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(Value::String("type".into()), Value::String(tt.into()));
-                m.insert(Value::String("subsystem".into()), Value::String(subsystem));
-                Value::Mapping(m)
-            }
-            _ => return Err(anyhow::anyhow!("Unknown trigger type: {}", tt)),
-        };
-
-        if let Some(triggers) = mapping.get_mut(Value::String("triggers".into())) {
-            if let Some(seq) = triggers.as_sequence_mut() {
-                seq.push(trigger);
-            }
-        } else {
-            mapping.insert(
-                Value::String("triggers".into()),
-                Value::Sequence(vec![trigger]),
-            );
         }
     }
 
+    // Validate the complete rule before writing it, so CLI edits can never
+    // produce a rule file that is silently ignored at run time.
+    let yaml_text = serde_yaml::to_string(&doc)?;
+    crate::parser::reader::config::read_rules_from_string(&yaml_text)
+        .map_err(|e| anyhow::anyhow!("refusing to write invalid rule: {}", e))?;
     yaml::writer::save_yaml(&path, &doc)?;
     println!("Rule '{}' modified", name);
     Ok(())

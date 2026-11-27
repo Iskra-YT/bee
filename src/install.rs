@@ -5,7 +5,7 @@ pub mod pipesystem;
 pub mod url;
 
 use crate::parser::{Dependency, DepsConfig};
-use crate::{file, hash, yaml};
+use crate::{file, hash, safety, yaml};
 use anyhow::Result;
 use std::fs;
 use std::process::Command;
@@ -20,13 +20,17 @@ fn update_deps_hash() -> Result<()> {
 }
 
 fn run_install_script(name: &str) -> Result<()> {
-    let script_path = std::fs::canonicalize(format!("bee/scripts/install/{}.sh", name))
-        .map_err(|_| anyhow::anyhow!("Install script not found for {}", name))?;
+    safety::validate_name("dependency", name)?;
+    let script_path = safety::safe_path("bee/scripts/install", "dependency", name)?
+        .with_extension("sh");
+    let script_path = std::fs::canonicalize(&script_path)
+        .map_err(|_| anyhow::anyhow!("install script not found for dependency '{}'", name))?;
+    let work_dir = safety::safe_path("bee/deps", "dependency", name)?;
 
     println!("  Running install script for {}...", name);
     let status = Command::new("sh")
         .arg(&script_path)
-        .current_dir(format!("bee/deps/{}", name))
+        .current_dir(&work_dir)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
         .status()?;
@@ -84,7 +88,7 @@ pub fn install_one(dep: &Dependency, update: bool) -> Result<()> {
                 anyhow::anyhow!("Dependency '{}' of type 'url' requires a source", dep.name)
             })?;
             let installed = url::install(&dep.name, source, dep.version.as_deref(), update)?;
-            if installed {
+            if installed && dep.install_script {
                 run_install_script(&dep.name)?;
             }
         }
@@ -93,7 +97,7 @@ pub fn install_one(dep: &Dependency, update: bool) -> Result<()> {
                 anyhow::anyhow!("Dependency '{}' of type 'git' requires a source", dep.name)
             })?;
             let installed = git::install(&dep.name, source, dep.version.as_deref(), update)?;
-            if installed {
+            if installed && dep.install_script {
                 run_install_script(&dep.name)?;
             }
         }
@@ -139,6 +143,7 @@ pub fn add_dep(
     install_script: Option<&str>,
     path: Option<&str>,
 ) -> Result<()> {
+    safety::validate_name("dependency", name)?;
     let mut deps = read_deps()?;
 
     if deps.iter().any(|d| d.name == name) {
@@ -173,10 +178,16 @@ pub fn add_dep(
         _ => return Err(anyhow::anyhow!("Unknown dependency type: {}", dep_type)),
     }
 
+    if install_script.is_some() && !matches!(dep_type, "url" | "git") {
+        return Err(anyhow::anyhow!(
+            "--install-script only applies to 'url' and 'git' dependencies"
+        ));
+    }
     if let Some(script) = install_script {
-        let script_path = format!("bee/scripts/install/{}.sh", name);
+        let script_path = safety::safe_path("bee/scripts/install", "dependency", name)?
+            .with_extension("sh");
         fs::create_dir_all("bee/scripts/install")?;
-        file::write_file_content(&script_path, script)?;
+        file::write_file_content(&script_path.to_string_lossy(), script)?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -203,29 +214,29 @@ pub fn add_dep(
 }
 
 pub fn remove_dep(name: &str) -> Result<()> {
+    safety::validate_name("dependency", name)?;
     let mut deps = read_deps()?;
     let initial_len = deps.len();
-
     deps.retain(|d| d.name != name);
-
     if deps.len() == initial_len {
-        return Err(anyhow::anyhow!("Dependency '{}' not found", name));
+        return Err(anyhow::anyhow!("dependency '{}' not found", name));
+    }
+
+    // Delete files before updating the registry: a failed deletion must not
+    // leave Bee claiming the dependency is gone.
+    let deps_dir = safety::safe_path("bee/deps", "dependency", name)?;
+    if deps_dir.exists() {
+        fs::remove_dir_all(&deps_dir)?;
+        println!("Removed installed dependency from {}", deps_dir.display());
+    }
+    let script_path = safety::safe_path("bee/scripts/install", "dependency", name)?
+        .with_extension("sh");
+    if script_path.exists() {
+        fs::remove_file(&script_path)?;
     }
 
     write_deps(&deps)?;
     update_deps_hash()?;
-
-    let deps_dir = format!("bee/deps/{}", name);
-    if std::path::Path::new(&deps_dir).exists() {
-        fs::remove_dir_all(&deps_dir)?;
-        println!("Removed installed dependency from {}", deps_dir);
-    }
-
-    let script_path = format!("bee/scripts/install/{}.sh", name);
-    if std::path::Path::new(&script_path).exists() {
-        fs::remove_file(&script_path)?;
-    }
-
     println!("Removed dependency '{}'", name);
     Ok(())
 }

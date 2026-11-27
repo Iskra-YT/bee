@@ -74,4 +74,10 @@ fn apply_override(task: &mut Task, override_cfg: &PlatformOverride) {
         }
         task.env = Some(env);
     }
+    if let Some(v) = &override_cfg.timeout {
+        task.timeout = Some(v.clone());
+    }
+    if let Some(v) = override_cfg.inherit_env {
+        task.inherit_env = Some(v);
+    }
 }

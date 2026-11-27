@@ -40,8 +40,9 @@ impl ExecutorRegistry {
                 ShellExecutor.execute(&context)
             }
             "legacy" => {
-                // Preserve previous execution semantics: run through `sh -c`.
-                context.shell = Some("sh".to_string());
+                // Use the platform shell: `sh -c` on Unix, `cmd.exe /C` on
+                // Windows where `sh` is usually unavailable.
+                context.shell = Some(default_shell());
                 context.shell_command = resolved.run.clone();
                 ShellExecutor.execute(&context)
             }
@@ -58,7 +59,27 @@ fn build_context(task: &Task) -> Result<ExecutionContext, ExecutionError> {
     let program = task.program.clone().unwrap_or_default();
     let mut context = ExecutionContext::new(task.name.clone(), program);
     context.args = task.args.clone().unwrap_or_default();
-    context.working_dir = task.working_dir.as_ref().map(PathBuf::from);
+    context.working_dir = task.working_dir.as_ref().map(|dir| {
+        let path = PathBuf::from(dir);
+        if path.is_absolute() {
+            path
+        } else {
+            // Relative directories are always anchored to the project root —
+            // the directory that contains `bee/` — not to a task's script path.
+            let root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            root.join(path)
+        }
+    });
+    context.inherit_env = task.inherit_env.unwrap_or(true);
+    context.options.timeout = match &task.timeout {
+        Some(value) => Some(
+            crate::time::parse_duration(value).map_err(|e| ExecutionError::InvalidConfig {
+                task: task.name.clone(),
+                message: e.to_string(),
+            })?,
+        ),
+        None => None,
+    };
     context.env = build_env(task);
     context.interpreter = task.interpreter.clone();
     context.interpreter_candidates = task.interpreter_candidates();

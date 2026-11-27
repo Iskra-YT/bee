@@ -8,36 +8,46 @@ mod file;
 mod graph;
 mod hash;
 mod init;
+mod inspect;
 mod install;
 mod list;
 mod modify;
 pub mod parser;
 mod run;
+mod safety;
+mod schedule;
 mod status;
 mod subsystem;
 mod system;
 mod time;
+mod ui;
 mod update;
 mod yaml;
 
+use anyhow::Result;
 use clap::Parser;
 use cli::Cli;
 
 fn main() {
+    if let Err(error) = run() {
+        let exit_code = run::tasks::failure_exit_code(&error).unwrap_or(1);
+        eprintln!("Error: {:#}", error);
+        std::process::exit(exit_code);
+    }
+}
+
+fn run() -> Result<()> {
     let cli = Cli::parse();
+    ui::configure(cli.no_color, cli.dry_run, cli.json);
 
     match cli.command {
         cli::Commands::Clean => {
-            if !file::check_bee_directory() {
-                eprintln!("Error: run bee init first");
-                return;
-            }
-
-            clean::clean_cache().unwrap_or_else(|e| eprintln!("Error: {}", e));
+            file::ensure_bee_directory()?;
+            clean::clean_cache()?;
         }
 
         cli::Commands::Update => {
-            update::run_update().unwrap_or_else(|e| eprintln!("Error: {}", e));
+            update::run_update()?;
         }
 
         cli::Commands::Version => {
@@ -45,190 +55,161 @@ fn main() {
         }
 
         cli::Commands::Run => {
-            if !file::check_bee_directory() {
-                eprintln!("Error: run bee init first");
-                return;
-            }
-
-            if let Err(e) = run::run_all() {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
+            file::ensure_bee_directory()?;
+            if ui::dry_run() {
+                run::dry_run_all()?;
+            } else {
+                run::run_all()?;
             }
         }
 
-        cli::Commands::Init(init_args) => {
-            init::run_init(init_args.name.as_deref(), init_args.yes)
-                .unwrap_or_else(|e| eprintln!("Error: {}", e));
+        cli::Commands::Init(args) => {
+            init::run_init(args.name.as_deref(), args.yes)?;
         }
 
         cli::Commands::List => {
-            if !file::check_bee_directory() {
-                eprintln!("Error: run bee init first");
-                return;
+            file::ensure_bee_directory()?;
+            if ui::json_mode() {
+                ui::print_json(&inspect::list_json()?);
+            } else {
+                list::list_pipelines()?;
+                list::list_tasks()?;
+                list::list_rules()?;
             }
-
-            list::list_pipelines().unwrap_or_else(|e| eprintln!("Error: {}", e));
-            list::list_tasks().unwrap_or_else(|e| eprintln!("Error: {}", e));
-            list::list_rules().unwrap_or_else(|e| eprintln!("Error: {}", e));
         }
 
         cli::Commands::Status => {
-            if !file::check_bee_directory() {
-                eprintln!("Error: run bee init first");
-                return;
+            file::ensure_bee_directory()?;
+            if ui::json_mode() {
+                ui::print_json(&inspect::status_json()?);
+            } else {
+                status::show_status()?;
             }
-
-            status::show_status().unwrap_or_else(|e| eprintln!("Error: {}", e));
         }
 
-        cli::Commands::Graph(graph_args) => {
-            if !file::check_bee_directory() {
-                eprintln!("Error: run bee init first");
-                return;
+        cli::Commands::Schedule(args) => {
+            file::ensure_bee_directory()?;
+            match args.command {
+                cli::ScheduleCommand::Run { interval, once } => {
+                    schedule::run_daemon(interval, once)?;
+                }
+                cli::ScheduleCommand::List => schedule::list_scheduled()?,
             }
+        }
 
-            match graph_args.command {
+        cli::Commands::Validate => {
+            file::ensure_bee_directory()?;
+            inspect::validate_command()?;
+        }
+
+        cli::Commands::Logs(args) => {
+            file::ensure_bee_directory()?;
+            match args.command {
+                cli::LogsCommand::Task { name } => inspect::logs_task_command(&name)?,
+                cli::LogsCommand::List => inspect::logs_list_command()?,
+            }
+        }
+
+        cli::Commands::Show(args) => {
+            file::ensure_bee_directory()?;
+            match args.command {
+                cli::ShowCommand::Task { name } => inspect::show_command("task", &name)?,
+                cli::ShowCommand::Pipeline { name } => inspect::show_command("pipeline", &name)?,
+                cli::ShowCommand::Rule { name } => inspect::show_command("rule", &name)?,
+            }
+        }
+
+        cli::Commands::Completions(args) => {
+            use clap::CommandFactory;
+            let shell = match args.shell.as_str() {
+                "bash" => clap_complete::Shell::Bash,
+                "zsh" => clap_complete::Shell::Zsh,
+                "fish" => clap_complete::Shell::Fish,
+                "powershell" => clap_complete::Shell::PowerShell,
+                other => return Err(anyhow::anyhow!("unsupported shell '{}'", other)),
+            };
+            clap_complete::generate(shell, &mut Cli::command(), "bee", &mut std::io::stdout());
+        }
+
+        cli::Commands::Graph(args) => {
+            file::ensure_bee_directory()?;
+            match args.command {
                 cli::GraphCommand::All { format } => {
-                    let fmt = match format.as_str() {
-                        "dot" => graph::GraphFormat::Dot,
-                        "mermaid" => graph::GraphFormat::Mermaid,
-                        _ => graph::GraphFormat::Tree,
-                    };
-                    match graph::render_all_pipelines(fmt) {
-                        Ok(output) => println!("{}", output),
-                        Err(e) => eprintln!("Error: {}", e),
-                    }
+                    let output = graph::render_all_pipelines(graph::parse_format(&format)?)?;
+                    println!("{}", output);
                 }
                 cli::GraphCommand::Pipeline { name, format } => {
-                    let fmt = match format.as_str() {
-                        "dot" => graph::GraphFormat::Dot,
-                        "mermaid" => graph::GraphFormat::Mermaid,
-                        _ => graph::GraphFormat::Tree,
-                    };
-                    match graph::render_pipeline_graph(&name, fmt) {
-                        Ok(output) => println!("{}", output),
-                        Err(e) => eprintln!("Error: {}", e),
-                    }
+                    let output =
+                        graph::render_pipeline_graph(&name, graph::parse_format(&format)?)?;
+                    println!("{}", output);
                 }
             }
         }
 
-        cli::Commands::Backup(backup_args) => {
-            if !file::check_bee_directory() {
-                eprintln!("Error: run bee init first");
-                return;
-            }
-
+        cli::Commands::Backup(args) => {
+            file::ensure_bee_directory()?;
             if file::is_subsystem() {
-                eprintln!("Error: backup is not available in a subsystem");
-                return;
+                return Err(anyhow::anyhow!("backup is not available in a subsystem"));
             }
-
-            match backup_args.command {
-                cli::BackupCommand::Create => {
-                    system::backup::make_backup().unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
-                cli::BackupCommand::List => {
-                    system::backup::list_backups().unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
-                cli::BackupCommand::Restore { hash } => {
-                    system::backup::restore(&hash).unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
+            match args.command {
+                cli::BackupCommand::Create => system::backup::make_backup()?,
+                cli::BackupCommand::List => system::backup::list_backups()?,
+                cli::BackupCommand::Restore { hash } => system::backup::restore(&hash)?,
             }
         }
 
-        cli::Commands::Docs(docs_args) => {
-            if !file::check_bee_directory() {
-                eprintln!("Error: run bee init first");
-                return;
-            }
-
-            match docs_args.command {
-                cli::DocsCommand::Update => {
-                    docs::update_docs().unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
+        cli::Commands::Docs(args) => {
+            file::ensure_bee_directory()?;
+            match args.command {
+                cli::DocsCommand::Update => docs::update_docs()?,
             }
         }
 
-        cli::Commands::Subsystem(subsystem_args) => {
-            if !file::check_bee_directory() {
-                eprintln!("Error: run bee init first");
-                return;
-            }
-
-            match subsystem_args.command {
-                cli::SubsystemCommand::List => {
-                    subsystem::subsystem_list().unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
-                cli::SubsystemCommand::Status => {
-                    subsystem::subsystem_status().unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
+        cli::Commands::Subsystem(args) => {
+            file::ensure_bee_directory()?;
+            match args.command {
+                cli::SubsystemCommand::List => subsystem::subsystem_list()?,
+                cli::SubsystemCommand::Status => subsystem::subsystem_status()?,
                 cli::SubsystemCommand::Run { subsystem, target } => match target {
                     cli::SubsystemRunTarget::Task { task } => {
-                        subsystem::subsystem_run_task(&subsystem, &task)
-                            .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                        subsystem::subsystem_run_task(&subsystem, &task)?;
                     }
                     cli::SubsystemRunTarget::Pipeline { pipeline } => {
-                        subsystem::subsystem_run_pipeline(&subsystem, &pipeline)
-                            .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                        subsystem::subsystem_run_pipeline(&subsystem, &pipeline)?;
                     }
                 },
                 cli::SubsystemCommand::Remove { name, delete } => {
-                    subsystem::subsystem_remove(&name, delete)
-                        .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    subsystem::subsystem_remove(&name, delete)?;
                 }
-                cli::SubsystemCommand::Doctor => {
-                    subsystem::subsystem_doctor().unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
-                cli::SubsystemCommand::Deps(deps_args) => match deps_args.command {
-                    cli::DepsCommand::List => {
-                        subsystem::subsystem_deps_list()
-                            .unwrap_or_else(|e| eprintln!("Error: {}", e));
-                    }
-                    cli::DepsCommand::Path { name } => {
-                        subsystem::subsystem_deps_path(&name)
-                            .unwrap_or_else(|e| eprintln!("Error: {}", e));
-                    }
+                cli::SubsystemCommand::Doctor => subsystem::subsystem_doctor()?,
+                cli::SubsystemCommand::Deps(args) => match args.command {
+                    cli::DepsCommand::List => subsystem::subsystem_deps_list()?,
+                    cli::DepsCommand::Path { name } => subsystem::subsystem_deps_path(&name)?,
                 },
             }
         }
 
-        cli::Commands::Pipeline(pipeline_args) => match pipeline_args.command {
+        cli::Commands::Pipeline(args) => match args.command {
             cli::PipelineCommand::Run { name } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
-                if let Err(e) = run::run_pipeline(name, None) {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
+                file::ensure_bee_directory()?;
+                if ui::dry_run() {
+                    run::dry_run_pipeline(&name)?;
+                } else {
+                    run::run_pipeline(name, None)?;
                 }
             }
-
             cli::PipelineCommand::List => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
-                list::list_pipelines().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                file::ensure_bee_directory()?;
+                list::list_pipelines()?;
             }
-
             cli::PipelineCommand::Create {
                 name,
                 tasks,
                 pipelines,
             } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
-                add::create_pipeline(&name, tasks, pipelines)
-                    .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                file::ensure_bee_directory()?;
+                add::create_pipeline(&name, tasks, pipelines)?;
             }
-
             cli::PipelineCommand::Modify {
                 name,
                 add_tasks,
@@ -236,53 +217,34 @@ fn main() {
                 add_pipelines,
                 rm_pipelines,
             } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
+                file::ensure_bee_directory()?;
                 modify::modify_pipeline(
                     &name,
                     &add_tasks,
                     &rm_tasks,
                     &add_pipelines,
                     &rm_pipelines,
-                )
-                .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                )?;
             }
-
             cli::PipelineCommand::Delete { name } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
-                delete::delete_pipeline(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                file::ensure_bee_directory()?;
+                delete::delete_pipeline(&name)?;
             }
         },
 
-        cli::Commands::Task(task_args) => match task_args.command {
-            cli::TaskCommand::Run { name } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
-                if let Err(e) = run::run_task(name) {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
+        cli::Commands::Task(args) => match args.command {
+            cli::TaskCommand::Run { name, force } => {
+                file::ensure_bee_directory()?;
+                if ui::dry_run() {
+                    run::dry_run_task(&name)?;
+                } else {
+                    run::run_task(name, force)?;
                 }
             }
-
             cli::TaskCommand::List => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
-                list::list_tasks().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                file::ensure_bee_directory()?;
+                list::list_tasks()?;
             }
-
             cli::TaskCommand::Create {
                 name,
                 depends_on,
@@ -295,11 +257,7 @@ fn main() {
                 interpreter,
                 script,
             } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
+                file::ensure_bee_directory()?;
                 add::create_task(
                     &name,
                     depends_on,
@@ -311,10 +269,8 @@ fn main() {
                     shell,
                     interpreter,
                     script,
-                )
-                .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                )?;
             }
-
             cli::TaskCommand::Modify {
                 name,
                 add_deps,
@@ -328,11 +284,7 @@ fn main() {
                 interpreter,
                 script,
             } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
+                file::ensure_bee_directory()?;
                 modify::modify_task(
                     &name,
                     &add_deps,
@@ -345,93 +297,52 @@ fn main() {
                     shell.as_deref(),
                     interpreter.as_deref(),
                     script.as_deref(),
-                )
-                .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                )?;
             }
-
             cli::TaskCommand::Delete { name } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
-                delete::delete_task(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                file::ensure_bee_directory()?;
+                delete::delete_task(&name)?;
             }
         },
 
-        cli::Commands::Rule(rule_args) => match rule_args.command {
+        cli::Commands::Rule(args) => match args.command {
             cli::RuleCommand::List => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
-                list::list_rules().unwrap_or_else(|e| eprintln!("Error: {}", e));
+                file::ensure_bee_directory()?;
+                list::list_rules()?;
             }
-
             cli::RuleCommand::Create { name, task } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
-                add::create_rule(&name, &task).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                file::ensure_bee_directory()?;
+                add::create_rule(&name, &task)?;
             }
-
             cli::RuleCommand::Modify {
                 name,
                 task,
                 trigger_type,
                 trigger_params,
             } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
+                file::ensure_bee_directory()?;
                 modify::modify_rule(
                     &name,
                     task.as_deref(),
                     trigger_type.as_deref(),
                     &trigger_params,
-                )
-                .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                )?;
             }
-
             cli::RuleCommand::Delete { name } => {
-                if !file::check_bee_directory() {
-                    eprintln!("Error: run bee init first");
-                    return;
-                }
-
-                delete::delete_rule(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
+                file::ensure_bee_directory()?;
+                delete::delete_rule(&name)?;
             }
         },
 
-        cli::Commands::Install(install_args) => {
-            if !file::check_bee_directory() {
-                eprintln!("Error: run bee init first");
-                return;
-            }
-
+        cli::Commands::Install(args) => {
+            file::ensure_bee_directory()?;
             if file::is_subsystem() {
-                eprintln!("Error: install is not available in a subsystem");
-                return;
+                return Err(anyhow::anyhow!("install is not available in a subsystem"));
             }
-
-            match install_args.command {
-                cli::InstallCommand::Run => {
-                    install::install_all().unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
-
-                cli::InstallCommand::Update => {
-                    install::update_all().unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
-
-                cli::InstallCommand::List => {
-                    install::list_deps().unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
-
+            match args.command {
+                cli::InstallCommand::Run => install::install_all()?,
+                cli::InstallCommand::Update => install::update_all()?,
+                cli::InstallCommand::List => install::list_deps()?,
                 cli::InstallCommand::Add {
                     name,
                     dep_type,
@@ -449,10 +360,8 @@ fn main() {
                         command.as_deref(),
                         install_script.as_deref(),
                         path.as_deref(),
-                    )
-                    .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    )?;
                 }
-
                 cli::InstallCommand::Modify {
                     name,
                     dep_type,
@@ -470,14 +379,12 @@ fn main() {
                         command.as_deref(),
                         install_script.as_deref(),
                         path.as_deref(),
-                    )
-                    .unwrap_or_else(|e| eprintln!("Error: {}", e));
+                    )?;
                 }
-
-                cli::InstallCommand::Remove { name } => {
-                    install::remove_dep(&name).unwrap_or_else(|e| eprintln!("Error: {}", e));
-                }
+                cli::InstallCommand::Remove { name } => install::remove_dep(&name)?,
             }
         }
     }
+
+    Ok(())
 }

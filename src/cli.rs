@@ -7,6 +7,18 @@ use clap::{Args, Parser, Subcommand};
     long_about = "Bee manages task pipelines with automatic dependency resolution.\n\nDefine tasks in bee/tasks/*.yml, connect them via depends_on,\norganize into pipelines in bee/pipelines/*.yml, and control when\nthey run with trigger rules in bee/rules/*.yml.\n\nRun 'bee init' to get started in a new project."
 )]
 pub struct Cli {
+    /// Emit machine-readable JSON where the command supports it
+    #[arg(long, global = true, help = "Emit machine-readable JSON where supported")]
+    pub json: bool,
+
+    /// Disable ANSI colors in status output
+    #[arg(long, global = true, help = "Disable colored output")]
+    pub no_color: bool,
+
+    /// Show what would happen without executing tasks
+    #[arg(long, global = true, help = "Print planned actions without running tasks")]
+    pub dry_run: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -20,7 +32,7 @@ pub enum Commands {
     Init(InitArgs),
 
     /// Run all pipelines
-    #[command(about = "Run all pipelines in dependency order")]
+    #[command(about = "Run all pipelines in dependency order", visible_alias = "r")]
     Run,
 
     /// List all tasks, pipelines, and rules
@@ -74,6 +86,87 @@ pub enum Commands {
     /// Update documentation files inside bee/
     #[command(about = "Regenerate the .md documentation files inside bee/")]
     Docs(DocsArgs),
+
+    /// Run scheduled tasks as a long-running daemon
+    #[command(about = "Run a daemon that executes cron-scheduled rules")]
+    Schedule(ScheduleArgs),
+
+    /// Validate configuration and report problems
+    #[command(about = "Check configuration integrity (alias: doctor)", visible_alias = "doctor")]
+    Validate,
+
+    /// Read task logs
+    #[command(about = "Show or list task log files")]
+    Logs(LogsArgs),
+
+    /// Show a task, pipeline, or rule definition
+    #[command(about = "Display a registered definition")]
+    Show(ShowArgs),
+
+    /// Generate shell completions
+    #[command(about = "Generate a shell completion script")]
+    Completions(CompletionsArgs),
+}
+
+#[derive(Args)]
+pub struct ScheduleArgs {
+    #[command(subcommand)]
+    pub command: ScheduleCommand,
+}
+
+#[derive(Subcommand)]
+pub enum ScheduleCommand {
+    /// Run the scheduler in the foreground until interrupted
+    #[command(about = "Run due scheduled tasks until interrupted")]
+    Run {
+        /// Poll interval in seconds (default: 5)
+        #[arg(long, default_value_t = 5, help = "Poll interval in seconds")]
+        interval: u64,
+
+        /// Perform a single scheduling pass and exit
+        #[arg(long, help = "Run one pass instead of staying resident")]
+        once: bool,
+    },
+    /// List scheduled rules and their next occurrence
+    #[command(about = "List cron rules and next run times")]
+    List,
+}
+
+#[derive(Args)]
+pub struct LogsArgs {
+    #[command(subcommand)]
+    pub command: LogsCommand,
+}
+
+#[derive(Subcommand)]
+pub enum LogsCommand {
+    /// Print the log for a task
+    Task { name: String },
+    /// List available log files
+    List,
+}
+
+#[derive(Args)]
+pub struct ShowArgs {
+    #[command(subcommand)]
+    pub command: ShowCommand,
+}
+
+#[derive(Subcommand)]
+pub enum ShowCommand {
+    /// Show a task definition
+    Task { name: String },
+    /// Show a pipeline definition
+    Pipeline { name: String },
+    /// Show a rule definition
+    Rule { name: String },
+}
+
+#[derive(Args)]
+pub struct CompletionsArgs {
+    /// Shell to generate completions for
+    #[arg(value_parser = ["bash", "zsh", "fish", "powershell"])]
+    pub shell: String,
 }
 
 // ─── Init ────────────────────────────────────────────────────────────
@@ -212,6 +305,10 @@ pub enum TaskCommand {
     Run {
         /// Task name to run
         name: String,
+
+        /// Ignore trigger rules and run the task now
+        #[arg(long, help = "Run the task even when no trigger fired")]
+        force: bool,
     },
 
     /// Create a new task

@@ -1,16 +1,49 @@
 use anyhow::Result;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
-fn has_remote_updates(deps_dir: &str) -> Result<bool> {
-    let fetch_output = Command::new("git")
-        .args(["-C", deps_dir, "fetch", "--dry-run"])
+fn has_remote_updates(deps_dir: &std::path::Path) -> Result<bool> {
+    let fetch = Command::new("git")
+        .args(["-C", &deps_dir.to_string_lossy(), "fetch", "--quiet"])
         .output()?;
+    if !fetch.status.success() {
+        let detail = String::from_utf8_lossy(&fetch.stderr).trim().to_string();
+        return Err(anyhow::anyhow!(
+            "could not fetch updates for {}: {}",
+            deps_dir.display(),
+            if detail.is_empty() {
+                "git fetch failed"
+            } else {
+                &detail
+            }
+        ));
+    }
 
-    Ok(!fetch_output.status.success()
-        || !fetch_output.stdout.is_empty()
-        || !fetch_output.stderr.is_empty())
+    let output = Command::new("git")
+        .args([
+            "-C",
+            &deps_dir.to_string_lossy(),
+            "rev-list",
+            "--left-right",
+            "--count",
+            "HEAD...@{upstream}",
+        ])
+        .output()?;
+    if !output.status.success() {
+        return Err(anyhow::anyhow!(
+            "could not compare {} with its upstream",
+            deps_dir.display()
+        ));
+    }
+    let counts = String::from_utf8_lossy(&output.stdout);
+    let behind = counts
+        .split_whitespace()
+        .nth(1)
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(0);
+    Ok(behind > 0)
 }
 
 fn parse_git_progress(line: &str, total: &mut u64, done: &mut u64) {
@@ -68,13 +101,41 @@ fn print_progress_bar(label: &str, done: u64, total: u64, width: usize) {
     let _ = std::io::stderr().flush();
 }
 
-pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) -> Result<bool> {
-    let deps_dir = format!("bee/deps/{}", name);
+fn is_at_version(deps_dir: &Path, version: &str) -> bool {
+    let dir = deps_dir.to_string_lossy().to_string();
+    let tag = format!("refs/tags/{}", version);
+    let tag_hash = Command::new("git")
+        .args(["-C", &dir, "rev-parse", "--verify", &tag])
+        .output();
+    let head_hash = Command::new("git")
+        .args(["-C", &dir, "rev-parse", "HEAD"])
+        .output();
+    match (tag_hash, head_hash) {
+        (Ok(tag), Ok(head)) if tag.status.success() && head.status.success() => {
+            String::from_utf8_lossy(&tag.stdout).trim()
+                == String::from_utf8_lossy(&head.stdout).trim()
+        }
+        _ => false,
+    }
+}
 
-    if std::path::Path::new(&deps_dir).exists() {
+pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) -> Result<bool> {
+    crate::safety::validate_name("dependency", name)?;
+    let deps_dir = crate::safety::safe_path("bee/deps", "dependency", name)?;
+    let deps_dir_str = deps_dir.to_string_lossy().to_string();
+
+    if deps_dir.exists() {
         if !update {
-            println!("  {} already installed, skipping.", name);
-            return Ok(false);
+            let up_to_date = match version {
+                Some(version) => is_at_version(&deps_dir, version),
+                None => true,
+            };
+            if up_to_date {
+                println!("  {} already installed, skipping.", name);
+                return Ok(false);
+            }
+            println!("  {} is installed at a different version, reinstalling.", name);
+            fs::remove_dir_all(&deps_dir)?;
         }
 
         let needs_update = has_remote_updates(&deps_dir)?;
@@ -85,7 +146,7 @@ pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) ->
 
         println!("  {} has updates available, pulling...", name);
         let mut child = Command::new("git")
-            .args(["-C", &deps_dir, "pull", "--ff-only"])
+            .args(["-C", &deps_dir_str, "pull", "--ff-only"])
             .stderr(Stdio::piped())
             .spawn()?;
 
@@ -109,13 +170,13 @@ pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) ->
             return Err(anyhow::anyhow!("Failed to pull {}", name));
         }
 
-        println!("  Updated {} at {}", name, deps_dir);
+        println!("  Updated {} at {}", name, deps_dir.display());
         return Ok(true);
     }
 
     fs::create_dir_all("bee/deps")?;
 
-    let mut args = vec!["clone", "--depth", "1", source, &deps_dir];
+    let mut args = vec!["clone", "--depth", "1", source, &deps_dir_str];
 
     let version_str;
     if let Some(v) = version {
@@ -127,7 +188,7 @@ pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) ->
             "--branch",
             &version_str,
             source,
-            &deps_dir,
+            &deps_dir_str,
         ];
     }
 
@@ -157,6 +218,6 @@ pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) ->
         return Err(anyhow::anyhow!("Failed to clone {}", name));
     }
 
-    println!("  Installed {} to {}", name, deps_dir);
+    println!("  Installed {} to {}", name, deps_dir.display());
     Ok(true)
 }

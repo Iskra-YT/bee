@@ -23,7 +23,7 @@ pub fn run_init(name: Option<&str>, yes: bool) -> Result<()> {
         print_parent_chain(&parent)?;
 
         if yes {
-            return run_init_subsystem(&parent, name);
+            return run_init_subsystem(&parent, name, true);
         }
 
         print!("Create a subsystem of it? [S]ubsystem / [F]ull / [C]ancel [S]: ");
@@ -36,11 +36,54 @@ pub fn run_init(name: Option<&str>, yes: bool) -> Result<()> {
                 println!("Cancelled.");
                 return Ok(());
             }
-            _ => return run_init_subsystem(&parent, name),
+            _ => return run_init_subsystem(&parent, name, yes),
         }
     }
 
-    run_init_full()
+    run_init_full(yes)
+}
+
+/// Refuse to destroy an existing `bee/` directory unless the user explicitly
+/// agreed with `--yes` or answered the confirmation prompt.
+fn guard_existing_bee_dir(yes: bool) -> Result<()> {
+    let path = Path::new("bee");
+    let exists = match path.symlink_metadata() {
+        Ok(_) => true,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => false,
+        Err(err) => return Err(err.into()),
+    };
+    if !exists {
+        return Ok(());
+    }
+    if yes {
+        println!("Replacing the existing 'bee/' directory (--yes).");
+        return Ok(());
+    }
+
+    print!(
+        "An existing 'bee/' directory was found but is not a valid bee project. \
+         Replace it? This permanently deletes its contents. [y/N]: "
+    );
+    io::stdout().flush()?;
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    match answer.trim().to_lowercase().as_str() {
+        "y" | "yes" => Ok(()),
+        _ => Err(anyhow::anyhow!(
+            "cancelled: the existing 'bee/' directory was not modified"
+        )),
+    }
+}
+
+fn remove_existing_bee() -> Result<()> {
+    let path = Path::new("bee");
+    match path.symlink_metadata() {
+        Ok(meta) if meta.file_type().is_symlink() => fs::remove_file(path)?,
+        Ok(_) => fs::remove_dir_all(path)?,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => return Err(err.into()),
+    }
+    Ok(())
 }
 
 fn print_parent_chain(parent: &Path) -> Result<()> {
@@ -73,8 +116,9 @@ fn print_parent_chain(parent: &Path) -> Result<()> {
     Ok(())
 }
 
-fn run_init_full() -> Result<()> {
-    let _ = fs::remove_dir_all("bee");
+fn run_init_full(yes: bool) -> Result<()> {
+    guard_existing_bee_dir(yes)?;
+    remove_existing_bee()?;
     for dir in [
         "bee/tasks",
         "bee/rules",
@@ -159,8 +203,9 @@ fn run_init_full() -> Result<()> {
     Ok(())
 }
 
-fn run_init_subsystem(parent: &Path, name: Option<&str>) -> Result<()> {
-    let _ = fs::remove_dir_all("bee");
+fn run_init_subsystem(parent: &Path, name: Option<&str>, yes: bool) -> Result<()> {
+    guard_existing_bee_dir(yes)?;
+    remove_existing_bee()?;
     for dir in [
         "bee/tasks",
         "bee/rules",
@@ -330,6 +375,7 @@ pub const BEE_README: &str = r#"# Bee - Task Pipeline Orchestration
 ## Table of Contents
 
 - [Building](#building)
+- [Global Flags and Inspection](#global-flags-and-inspection)
 - [Project Initialization](#project-initialization)
 - [Subsystems](#subsystems)
 - [Directory Structure](#directory-structure)
@@ -344,6 +390,7 @@ pub const BEE_README: &str = r#"# Bee - Task Pipeline Orchestration
 - [Project Status](#project-status)
 - [YAML File Formats](#yaml-file-formats)
 - [Trigger System](#trigger-system)
+- [Scheduling](#scheduling)
 - [Full Configuration Example](#full-configuration-example)
 
 ---
@@ -374,6 +421,39 @@ This prints the `git rev-parse HEAD` hash recorded when the binary was built/ins
 
 ```bash
 bee docs update
+```
+
+---
+
+## Global Flags and Inspection
+
+These flags work with every command:
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Machine-readable JSON output where supported (`list`, `status`, `validate`, `logs`, `show`, `schedule list`) |
+| `--no-color` | Disable ANSI colors (also honored via the `NO_COLOR` environment variable) |
+| `--dry-run` | Print the work a run would perform without executing tasks or changing cache state |
+
+```bash
+bee --json list
+bee --no-color status
+bee --dry-run run
+bee --dry-run task run build --force
+bee task run build --force   # bypass trigger rules for a one-off run
+```
+
+Inspect and diagnose a project:
+
+```bash
+bee validate              # check YAML, registries, references, DAG and hashes (alias: bee doctor)
+bee --json validate       # structured report: {"ok":..., "checked":..., "problems":[...]}
+bee logs list             # list bee/logs/*.log
+bee logs task build       # print a task log
+bee show task build       # print a task definition
+bee show pipeline ci
+bee show rule auto-build
+bee completions bash      # also: zsh, fish, powershell
 ```
 
 ---
@@ -427,20 +507,24 @@ Bee walks up the directory tree, finds the nearest valid parent bee system, and 
 
 ```
 Detected a parent bee system at '/path/to/parent'.
-Create a subsystem of it in this directory? [Y/n]
+Create a subsystem of it? [S]ubsystem / [F]ull / [C]ancel [S]:
 ```
 
-- `Y` (default) — creates a lightweight subsystem:
+- `S` (default) — creates a lightweight subsystem:
   - own `bee/tasks/`, `bee/pipelines/`, `bee/rules/` — works independently
   - minimal `bee/system/` (`init`, `config.yml`, hashes)
   - `bee/system/parent` — relative pointer back to the parent system
   - registers itself in the parent's `bee/system/subsystems.yml`
-- `n` — creates a normal, fully independent bee project.
+- `F` — creates a normal, fully independent bee project.
+- `C` — cancels without changing anything.
+
+If a `bee/` directory already exists but is not a valid bee project, `bee init`
+refuses to delete it until you confirm with `y` at the prompt or pass `--yes`.
 
 Flags:
 
 ```bash
-bee init --yes          # auto-accept subsystem creation (no prompt)
+bee init --yes          # auto-accept subsystem creation and replacement of an existing bee/
 bee init --name auth    # override subsystem name (default: current directory name)
 ```
 
@@ -627,6 +711,8 @@ Tasks without `executor` and with `run` keep the previous shell-based execution 
 | `args` | list[string] | Arguments for `process`/`script` executors |
 | `working_dir` | string | Working directory (relative to project root or absolute) |
 | `env` | map[string,string] | Environment variables added for the task |
+| `timeout` | string | Kill the task after this duration: `30` (seconds), `30s`, `2m`, `1h`, `500ms` |
+| `inherit_env` | bool | Set to `false` to drop unrelated process variables (essential launch/TMP variables are kept) |
 | `shell` | string | Shell for `shell` executor: `bash`, `sh`, `powershell`, `cmd` |
 | `interpreter` | string or list[string] | Interpreter for `script` executor; the first available candidate wins |
 | `script` | string | Script file for `script` executor |
@@ -934,11 +1020,18 @@ When a task runs, its output is **not** printed to the console (task outputs wou
 bee/logs/<taskname>.log
 ```
 
-The log file is overwritten on each run. On failure the log contains the exit code, stderr, and any stdout produced. The console only shows the task status lines (`running`, `FAILED`, `SKIPPED`, etc.).
+The log file is overwritten on each run and always contains the exit code, `[stdout]` and `[stderr]` sections. Bee system messages on the terminal are prefixed with `[BEE]`. Task stdout/stderr is also printed to the terminal, prefixed with `[taskname]`, so parallel output stays readable.
 
 ```bash
 cat bee/logs/compile.log   # inspect what the compile task output
+bee logs list              # list available logs
+bee logs task compile      # print one log (also: bee --json logs task compile)
+bee --json logs list
 ```
+
+Every log has a `[stdout]` and `[stderr]` section plus the task's exit code.
+Values of environment variables whose names look like secrets (`TOKEN`,
+`PASSWORD`, `API_KEY`, ...) are replaced with `[REDACTED]`.
 
 `bee clean` does not remove `bee/logs/` — delete log files manually if you want to clear them.
 
@@ -1055,6 +1148,42 @@ triggers:
 4. The `manual` trigger never returns `true` automatically
 5. Trigger states are cached in `bee/cache/triggers/`
 6. `bee clean` resets all trigger states
+7. `schedule` triggers are **only** evaluated by `bee schedule run`; one-shot commands ignore them
+
+Example of a scheduled rule (requires the daemon described below):
+
+```yaml
+name: periodic-cleanup
+task: cleanup
+triggers:
+  - type: schedule
+    cron: "*/15 * * * *"
+```
+
+---
+
+## Scheduling
+
+Cron triggers are evaluated by a real foreground daemon, not by one-shot
+commands. Add a `schedule` trigger to a rule, then run:
+
+```bash
+bee schedule list              # rule, task, cron expression, next occurrence
+bee schedule run               # poll every 5 seconds until interrupted
+bee schedule run --interval 30 # custom poll interval
+bee schedule run --once        # perform exactly one pass and exit
+bee --dry-run schedule run --once  # show what would fire, change nothing
+```
+
+Cron expressions have five fields: `minute hour day-of-month month weekday`.
+`*`, `*/step`, lists, ranges and range steps are supported, e.g. `*/15 9-17 * * 1-5`.
+Invalid expressions are rejected when the rule is created or validated.
+
+Each rule fires at most once per matching minute. The fired marker is stored in
+`bee/cache/triggers/` and survives daemon restarts, so a restart mid-minute does
+not run the task twice. A failed task does not consume the trigger: it will be
+retried on the next matching minute. Scheduled runs use `task run --force`
+semantics because the cron trigger itself is the authorization to run.
 
 ---
 
@@ -1259,9 +1388,17 @@ bee update
 What it does:
 - Detects your platform and architecture.
 - Finds the latest published release tagged `bee-<full-commit-sha>`.
-- Downloads the matching release artifact and `SHA256SUMS`.
-- Verifies the SHA-256 checksum when `SHA256SUMS` is available.
-- Replaces the current `bee` executable in place.
+- **Requires** the release's `SHA256SUMS` asset and a valid entry for the
+  selected artifact. If it is missing, the update aborts before replacing
+  anything (fail closed).
+- Verifies the SHA-256 checksum of the downloaded archive.
+- Smoke-tests the downloaded binary (`bee version` must report the release SHA).
+- Installs atomically: the new binary is staged next to the current one, the
+  current executable is backed up, and the swap is rolled back automatically if
+  the installed binary fails its smoke test.
+- On Windows, where the running executable is locked, the update is staged as
+  `bee-new.exe` and a `bee.cmd` helper is written. Run `bee.cmd` once to finish
+  the swap.
 
 Requirements:
 - `curl` must be available for API/download requests.
@@ -1321,7 +1458,7 @@ bee clean                                        # Clear cache
 bee task create <name> [-d <dep>...] [-r <cmd>]  # Create task
 bee task modify <name> [--add-dep/--rm-dep/-r]   # Modify task
 bee task list                                    # List tasks
-bee task run <name>                              # Run task
+bee task run <name> [--force]                    # Run task (force bypasses rules)
 bee task delete <name>                           # Delete task
 
 bee pipeline create <name> [-t <task>...] [-p <pipeline>...] # Create pipeline
@@ -1354,6 +1491,17 @@ bee subsystem run <subsystem> task <task>               # Run a task inside a su
 bee subsystem run <subsystem> pipeline <pipeline>       # Run a pipeline inside a subsystem
 
 bee docs update                                  # Regenerate bee/*.md docs from built-in templates
+
+bee validate / bee doctor                        # Validate YAML, references, DAG and hashes
+bee --json validate                              # Structured validation report
+bee --json list / bee --json status              # Machine-readable inventory/status
+bee --no-color status                            # Disable ANSI colors
+bee --dry-run run / task run <name>              # Plan without executing
+bee logs list / bee logs task <name>             # Inspect task logs
+bee show task|pipeline|rule <name>               # Print a definition
+bee schedule list                                # List cron rules and next runs
+bee schedule run [--interval N] [--once]         # Run the cron daemon
+bee completions bash|zsh|fish|powershell         # Generate shell completions
 
 # Subsystem-aware trigger types:
 #   subtask_completed/failed/changed: --trigger-param subsystem=<subsystem> --trigger-param task=<task>
