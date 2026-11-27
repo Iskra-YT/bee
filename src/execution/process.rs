@@ -26,16 +26,29 @@ pub fn run_process(
     let mut cmd = Command::new(&launch_program);
     #[cfg(windows)]
     {
-        if launch_program.eq_ignore_ascii_case("cmd.exe")
-            && resolved_args.first().map(|s| s.as_str()) == Some("/C")
-        {
+        let is_cmd_c = launch_program.eq_ignore_ascii_case("cmd.exe")
+            && resolved_args.first().map(|s| s.as_str()) == Some("/C");
+        let is_cmd_sc = launch_program.eq_ignore_ascii_case("cmd.exe")
+            && resolved_args.first().map(|s| s.as_str()) == Some("/S")
+            && resolved_args.get(1).map(|s| s.as_str()) == Some("/C");
+        if is_cmd_c || is_cmd_sc {
             use std::os::windows::process::CommandExt;
-            cmd.arg("/C");
-            if let Some(command_line) = resolved_args.get(1) {
-                cmd.raw_arg(command_line);
-            }
-            for extra in resolved_args.iter().skip(2) {
-                cmd.arg(extra);
+            if is_cmd_sc {
+                cmd.arg("/S").arg("/C");
+                if let Some(command_line) = resolved_args.get(2) {
+                    cmd.raw_arg(command_line);
+                }
+                for extra in resolved_args.iter().skip(3) {
+                    cmd.arg(extra);
+                }
+            } else {
+                cmd.arg("/C");
+                if let Some(command_line) = resolved_args.get(1) {
+                    cmd.raw_arg(command_line);
+                }
+                for extra in resolved_args.iter().skip(2) {
+                    cmd.arg(extra);
+                }
             }
         } else {
             cmd.args(&resolved_args);
@@ -207,11 +220,15 @@ fn resolve_program_invocation(program: &str, args: &[String]) -> (String, Vec<St
                 .map(|part| quote_cmd_argument(&part))
                 .collect::<Vec<_>>()
                 .join(" ");
-            // cmd.exe /C strips the first and last quote when the command starts
-            // with a quote, so wrap the whole command line in an extra pair.
+            // /S /C with an outer quoted command line gives predictable quote
+            // handling for paths/args that contain spaces.
             return (
                 "cmd.exe".to_string(),
-                vec!["/C".to_string(), format!("\"{}\"", command_line)],
+                vec![
+                    "/S".to_string(),
+                    "/C".to_string(),
+                    format!("\"{}\"", command_line),
+                ],
             );
         }
     }
