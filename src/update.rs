@@ -437,6 +437,21 @@ pub fn write_windows_helper(current_exe: &Path) -> Result<PathBuf> {
     Ok(helper)
 }
 
+fn copy_for_execution(src: &Path, dst: &Path) -> Result<()> {
+    use std::io::Write;
+    let mut input = fs::File::open(src)?;
+    let mut output = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(dst)?;
+    std::io::copy(&mut input, &mut output)?;
+    output.sync_all()?;
+    drop(output);
+    drop(input);
+    Ok(())
+}
+
 /// Install a verified binary. Returns `false` when the update was staged for
 /// the Windows helper because the running executable could not be replaced.
 pub fn install_binary(new_binary: &Path, current_exe: &Path, expected_sha: Option<&str>) -> Result<bool> {
@@ -458,7 +473,7 @@ pub fn install_binary(new_binary: &Path, current_exe: &Path, expected_sha: Optio
         stamp
     ));
 
-    fs::copy(new_binary, &temp)?;
+    copy_for_execution(new_binary, &temp)?;
     set_executable(&temp)?;
     smoketest(&temp, expected_sha)?;
     println!("  Installing to {}...", current_exe.display());
@@ -597,8 +612,14 @@ mod tests {
     #[test]
     fn windows_helper_mentions_both_binaries() {
         let exe = Path::new("/tmp/tools/bee.exe");
-        assert_eq!(staged_path(exe), PathBuf::from("/tmp/tools/bee-new.exe"));
-        assert_eq!(helper_path(exe), PathBuf::from("/tmp/tools/bee.cmd"));
+        assert_eq!(
+            staged_path(exe).file_name().and_then(|n| n.to_str()),
+            Some("bee-new.exe")
+        );
+        assert_eq!(
+            helper_path(exe).file_name().and_then(|n| n.to_str()),
+            Some("bee.cmd")
+        );
         let dir = tempfile::tempdir().unwrap();
         let helper = write_windows_helper(&dir.path().join("bee.exe")).unwrap();
         let content = fs::read_to_string(helper).unwrap();

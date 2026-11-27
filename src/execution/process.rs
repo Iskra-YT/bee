@@ -2,7 +2,7 @@ use crate::execution::context::ExecutionContext;
 use crate::execution::error::ExecutionError;
 use crate::execution::executor::{ExecutionResult, Executor};
 use crate::execution::resolution::resolve_executable;
-use std::io::Read;
+use std::io::{self, Read, Write};
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
@@ -24,7 +24,27 @@ pub fn run_process(
     let (resolved_program, resolved_args) = resolve_program_invocation(program, args);
     let launch_program = resolve_executable(&resolved_program);
     let mut cmd = Command::new(&launch_program);
-    cmd.args(&resolved_args);
+    #[cfg(windows)]
+    {
+        if launch_program.eq_ignore_ascii_case("cmd.exe")
+            && resolved_args.first().map(|s| s.as_str()) == Some("/C")
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.arg("/C");
+            if let Some(command_line) = resolved_args.get(1) {
+                cmd.raw_arg(command_line);
+            }
+            for extra in resolved_args.iter().skip(2) {
+                cmd.arg(extra);
+            }
+        } else {
+            cmd.args(&resolved_args);
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        cmd.args(&resolved_args);
+    }
 
     if let Some(dir) = &context.working_dir {
         if !dir.exists() {
@@ -75,24 +95,15 @@ pub fn run_process(
             }
         })?;
 
-    // Drain both pipes concurrently. Otherwise a child that writes more than
-    // a pipe buffer to stderr while we wait for exit would deadlock.
-    let mut stdout_pipe = child.stdout.take();
-    let mut stderr_pipe = child.stderr.take();
-    let stdout_thread = thread::spawn(move || {
-        let mut output = Vec::new();
-        if let Some(pipe) = stdout_pipe.as_mut() {
-            let _ = pipe.read_to_end(&mut output);
-        }
-        output
-    });
-    let stderr_thread = thread::spawn(move || {
-        let mut output = Vec::new();
-        if let Some(pipe) = stderr_pipe.as_mut() {
-            let _ = pipe.read_to_end(&mut output);
-        }
-        output
-    });
+    // Drain both pipes concurrently while streaming them to the terminal.
+    // Streaming keeps interactive prompts visible (sudo/ssh) and still captures
+    // full output for logs. Pipe draining prevents deadlocks on full buffers.
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
+    let task_out = context.task_name.clone();
+    let task_err = context.task_name.clone();
+    let stdout_thread = thread::spawn(move || tee_reader(stdout_pipe, &task_out));
+    let stderr_thread = thread::spawn(move || tee_reader(stderr_pipe, &task_err));
 
     let wait_result = wait_for_exit(&mut child, &context.task_name, context.options.timeout);
     let stdout = stdout_thread.join().unwrap_or_default();
@@ -175,7 +186,12 @@ fn resolve_program_invocation(program: &str, args: &[String]) -> (String, Vec<St
                 .map(|part| quote_cmd_argument(&part))
                 .collect::<Vec<_>>()
                 .join(" ");
-            return ("cmd.exe".to_string(), vec!["/C".to_string(), command_line]);
+            // cmd.exe /C strips the first and last quote when the command starts
+            // with a quote, so wrap the whole command line in an extra pair.
+            return (
+                "cmd.exe".to_string(),
+                vec!["/C".to_string(), format!("\"{}\"", command_line)],
+            );
         }
     }
 
@@ -185,6 +201,54 @@ fn resolve_program_invocation(program: &str, args: &[String]) -> (String, Vec<St
     }
 
     (program.to_string(), args.to_vec())
+}
+
+fn tee_reader(pipe: Option<impl Read>, task: &str) -> Vec<u8> {
+    let Some(mut pipe) = pipe else {
+        return Vec::new();
+    };
+    let mut captured = Vec::new();
+    let mut buf = [0u8; 4096];
+    let mut at_line_start = true;
+    let json_mode = crate::ui::json_mode();
+    let prefix = if crate::ui::color_enabled() {
+        format!("\x1b[36m[{}]\x1b[0m ", task)
+    } else {
+        format!("[{}] ", task)
+    };
+
+    loop {
+        match pipe.read(&mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                let chunk = &buf[..n];
+                captured.extend_from_slice(chunk);
+                if json_mode {
+                    continue;
+                }
+                let mut out = io::stdout().lock();
+                let mut i = 0;
+                while i < chunk.len() {
+                    if at_line_start {
+                        let _ = out.write_all(prefix.as_bytes());
+                        at_line_start = false;
+                    }
+                    let next_nl = chunk[i..].iter().position(|&b| b == b'\n');
+                    if let Some(rel) = next_nl {
+                        let end = i + rel + 1;
+                        let _ = out.write_all(&chunk[i..end]);
+                        at_line_start = true;
+                        i = end;
+                    } else {
+                        let _ = out.write_all(&chunk[i..]);
+                        i = chunk.len();
+                    }
+                }
+                let _ = out.flush();
+            }
+        }
+    }
+    captured
 }
 
 /// Quote a single argument for `cmd.exe /C`. CMD treats `""` inside a quoted

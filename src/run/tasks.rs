@@ -421,7 +421,6 @@ pub fn run_task(task: crate::parser::Task, force: bool) -> Result<()> {
             cache::commit_pending()?;
             let log = format_success_log(&task.name, &exec_result);
             write_log(&task, &log);
-            crate::ui::print_task_output(&task.name, &exec_result.stdout, &exec_result.stderr);
             let stamp = crate::hash::hash_string(&crate::time::get_timestamp_string());
             if let Err(err) = cache::set_last_run(&task.name, &stamp) {
                 crate::ui::einfo(format!("Warning: could not record last run: {}", err));
@@ -432,7 +431,6 @@ pub fn run_task(task: crate::parser::Task, force: bool) -> Result<()> {
         }
         Ok(exec_result) => {
             cache::discard_pending()?;
-            crate::ui::print_task_output(&task.name, &exec_result.stdout, &exec_result.stderr);
             let msg = format_failed_execution(&task.name, &exec_result);
             write_log(&task, &format!("{}\n", msg));
             mark_task_state(&task.name, "failed")?;
