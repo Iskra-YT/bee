@@ -26,9 +26,9 @@ pub fn run_process(
     let mut cmd = Command::new(&launch_program);
     #[cfg(windows)]
     {
-        let is_cmd_c = launch_program.eq_ignore_ascii_case("cmd.exe")
+        let is_cmd_c = is_cmd_program(&launch_program)
             && resolved_args.first().map(|s| s.as_str()) == Some("/C");
-        let is_cmd_sc = launch_program.eq_ignore_ascii_case("cmd.exe")
+        let is_cmd_sc = is_cmd_program(&launch_program)
             && resolved_args.first().map(|s| s.as_str()) == Some("/S")
             && resolved_args.get(1).map(|s| s.as_str()) == Some("/C");
         if is_cmd_c || is_cmd_sc {
@@ -289,12 +289,37 @@ fn tee_reader(pipe: Option<impl Read>, task: &str) -> Vec<u8> {
     captured
 }
 
+/// `resolve_executable` can turn `cmd.exe` into an absolute path, so match on
+/// the file name to make sure cmd's argument line is passed through `raw_arg`
+/// instead of being escaped by Rust's Windows command-line quoting.
+#[cfg(any(windows, test))]
+fn is_cmd_program(program: &str) -> bool {
+    Path::new(program)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("cmd.exe"))
+}
+
 /// Quote a single argument for `cmd.exe /C`. CMD treats `""` inside a quoted
 /// string as a literal quote and `"` as a delimiter; this keeps arguments
 /// containing spaces or shell metacharacters as one token with no injection.
 #[cfg(windows)]
 fn quote_cmd_argument(value: &str) -> String {
     format!("\"{}\"", value.replace('"', "\"\""))
+}
+
+#[cfg(test)]
+mod program_detection_tests {
+    use super::is_cmd_program;
+
+    #[test]
+    fn detects_cmd_program_after_path_resolution() {
+        assert!(is_cmd_program("cmd.exe"));
+        assert!(is_cmd_program("CMD.EXE"));
+        assert!(is_cmd_program("C:/Windows/System32/cmd.exe"));
+        assert!(!is_cmd_program("C:/Windows/System32/cmd"));
+        assert!(!is_cmd_program("C:/Windows/System32/powershell.exe"));
+    }
 }
 
 #[cfg(all(test, windows))]
