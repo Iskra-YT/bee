@@ -40,14 +40,14 @@ fn remove_registered(kind: &str, name: &str, dir: &str) -> Result<()> {
     }
 }
 
-pub fn delete_task(name: &String) -> Result<()> {
+pub fn delete_task(name: &str) -> Result<()> {
     remove_registered("task", name, "bee/tasks")
 }
 
-pub fn delete_pipeline(name: &String) -> Result<()> {
+pub fn delete_pipeline(name: &str) -> Result<()> {
     remove_registered("pipeline", name, "bee/pipelines")
 }
 
-pub fn delete_rule(name: &String) -> Result<()> {
+pub fn delete_rule(name: &str) -> Result<()> {
     remove_registered("rule", name, "bee/rules")
 }

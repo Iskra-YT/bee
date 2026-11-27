@@ -1,28 +1,9 @@
-mod add;
-mod clean;
-mod cli;
-mod delete;
-mod docs;
-pub mod execution;
-mod file;
-mod graph;
-mod hash;
-mod init;
-mod inspect;
-mod install;
-mod list;
-mod modify;
-pub mod parser;
-mod run;
-mod safety;
-mod schedule;
-mod status;
-mod subsystem;
-mod system;
-mod time;
-mod ui;
-mod update;
-mod yaml;
+// Reuse the library crate instead of compiling a second copy of these modules
+// into the binary; otherwise items only used by the library/tests look dead.
+use bee::{
+    add, clean, cli, delete, docs, file, graph, hash, init, inspect, install, list, modify, run,
+    schedule, status, subsystem, system, ui, update,
+};
 
 use anyhow::Result;
 use clap::Parser;

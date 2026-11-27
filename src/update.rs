@@ -441,7 +441,6 @@ pub fn write_windows_helper(current_exe: &Path) -> Result<PathBuf> {
 }
 
 fn copy_for_execution(src: &Path, dst: &Path) -> Result<()> {
-    use std::io::Write;
     let mut input = fs::File::open(src)?;
     let mut output = fs::OpenOptions::new()
         .write(true)

@@ -162,11 +162,10 @@ pub fn make_backup() -> Result<()> {
 
     let system_dst = backup_path.join("system");
     fs::create_dir_all(&system_dst)?;
-    for f in ["config.yml"] {
-        let src_path = Path::new("bee/system").join(f);
-        if src_path.exists() {
-            fs::copy(&src_path, system_dst.join(f))?;
-        }
+    let f = "config.yml";
+    let src_path = Path::new("bee/system").join(f);
+    if src_path.exists() {
+        fs::copy(&src_path, system_dst.join(f))?;
     }
 
     let mut meta = json::object! {};
