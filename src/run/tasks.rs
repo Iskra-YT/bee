@@ -49,10 +49,7 @@ pub fn should_run(task_name: &str, force: bool) -> Result<bool> {
 }
 
 /// Whether a scheduled trigger of any rule for this task is due at `now`.
-pub fn schedule_due(
-    task_name: &str,
-    now: &chrono::DateTime<chrono::Local>,
-) -> Result<bool> {
+pub fn schedule_due(task_name: &str, now: &chrono::DateTime<chrono::Local>) -> Result<bool> {
     let rules = reader::read_rules()?;
     for rule in rules.iter().filter(|r| r.task == task_name) {
         for trigger in &rule.triggers {
@@ -96,15 +93,9 @@ fn evaluate_trigger(trigger: &RuleTrigger, task_name: &str) -> bool {
         RuleTrigger::SubtaskFailed { subsystem, task } => {
             check_subtask_state(subsystem, task, "failed")
         }
-        RuleTrigger::SubtaskChanged { subsystem, task } => {
-            check_subtask_changed(subsystem, task)
-        }
-        RuleTrigger::ParentTaskCompleted { task } => {
-            check_parent_task_state(task, "completed")
-        }
-        RuleTrigger::ParentTaskFailed { task } => {
-            check_parent_task_state(task, "failed")
-        }
+        RuleTrigger::SubtaskChanged { subsystem, task } => check_subtask_changed(subsystem, task),
+        RuleTrigger::ParentTaskCompleted { task } => check_parent_task_state(task, "completed"),
+        RuleTrigger::ParentTaskFailed { task } => check_parent_task_state(task, "failed"),
         RuleTrigger::SubsystemChanged { subsystem } => check_subsystem_changed(subsystem),
     }
 }
@@ -460,10 +451,7 @@ pub fn run_task(task: crate::parser::Task, force: bool, interactive: bool) -> Re
     }
 }
 
-fn format_failed_execution(
-    task_name: &str,
-    result: &crate::execution::ExecutionResult,
-) -> String {
+fn format_failed_execution(task_name: &str, result: &crate::execution::ExecutionResult) -> String {
     let mut msg = format!(
         "task '{}' failed with exit code {}",
         task_name, result.exit_code

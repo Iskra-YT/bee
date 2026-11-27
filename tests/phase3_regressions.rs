@@ -45,9 +45,8 @@ fn stderr(assert: &assert_cmd::assert::Assert) -> String {
 }
 
 fn json_output(assert: &assert_cmd::assert::Assert) -> json::JsonValue {
-    json::parse(&stdout(assert)).unwrap_or_else(|err| {
-        panic!("invalid JSON output '{}': {}", stdout(assert), err)
-    })
+    json::parse(&stdout(assert))
+        .unwrap_or_else(|err| panic!("invalid JSON output '{}': {}", stdout(assert), err))
 }
 
 #[test]
@@ -81,7 +80,10 @@ fn schedule_list_and_once_daemon_fire_a_real_task() {
     let data = json_output(&listed);
     assert_eq!(data["scheduled"][0]["cron"].as_str(), Some("* * * * *"));
     assert_eq!(data["scheduled"][0]["task"].as_str(), Some("build"));
-    assert!(!data["scheduled"][0]["next_run"].as_str().unwrap().is_empty());
+    assert!(!data["scheduled"][0]["next_run"]
+        .as_str()
+        .unwrap()
+        .is_empty());
 
     let dry = bee(project.path())
         .args(["--dry-run", "schedule", "run", "--once"])
@@ -92,7 +94,10 @@ fn schedule_list_and_once_daemon_fire_a_real_task() {
         "unexpected output: {}",
         stdout(&dry)
     );
-    assert!(!project.exists("bee/logs/build.log"), "dry run executed the task");
+    assert!(
+        !project.exists("bee/logs/build.log"),
+        "dry run executed the task"
+    );
 
     let fired = bee(project.path())
         .args(["schedule", "run", "--once"])
@@ -177,7 +182,10 @@ fn logs_and_show_commands_read_only_configuration_and_logs() {
         .assert()
         .success();
 
-    let list = bee(project.path()).args(["logs", "list"]).assert().success();
+    let list = bee(project.path())
+        .args(["logs", "list"])
+        .assert()
+        .success();
     assert!(stdout(&list).contains("build"));
 
     let log = bee(project.path())
@@ -221,7 +229,10 @@ fn logs_and_show_commands_read_only_configuration_and_logs() {
 #[test]
 fn json_list_and_status_are_machine_readable() {
     let project = Project::new();
-    let listed = bee(project.path()).args(["--json", "list"]).assert().success();
+    let listed = bee(project.path())
+        .args(["--json", "list"])
+        .assert()
+        .success();
     let data = json_output(&listed);
     assert!(data["tasks"].is_array());
     assert!(data["pipelines"].is_array());
@@ -321,7 +332,11 @@ mod update_tests {
         assert!(bee::update::smoketest(&good, Some("f".repeat(40).as_str())).is_err());
 
         let silent = dir.path().join("silent");
-        fs::write(&silent, "#!/bin/sh\nif [ \"$1\" = version ]; then exit 0; fi\n").unwrap();
+        fs::write(
+            &silent,
+            "#!/bin/sh\nif [ \"$1\" = version ]; then exit 0; fi\n",
+        )
+        .unwrap();
         fs::set_permissions(&silent, fs::Permissions::from_mode(0o755)).unwrap();
         assert!(bee::update::smoketest(&silent, None).is_err());
     }
@@ -364,6 +379,9 @@ fn checksum_lookup_fails_closed_without_a_matching_entry() {
     assert!(bee::update::checksum_for("bad line\n", "bee.tar.gz").is_err());
     let hash = "a".repeat(64);
     let sums = format!("{}  bee.tar.gz\n", hash);
-    assert_eq!(bee::update::checksum_for(&sums, "bee.tar.gz").unwrap(), hash);
+    assert_eq!(
+        bee::update::checksum_for(&sums, "bee.tar.gz").unwrap(),
+        hash
+    );
     assert!(bee::update::checksum_for(&sums, "other.tar.gz").is_err());
 }

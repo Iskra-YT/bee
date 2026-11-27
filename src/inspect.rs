@@ -72,16 +72,10 @@ pub fn validate() -> Result<Report> {
                         }
                     }
                     if let Err(err) = crate::run::dag::build_dag(parsed) {
-                        problems.push(format!(
-                            "bee/pipelines/{}.yml: {}",
-                            pipeline.name, err
-                        ));
+                        problems.push(format!("bee/pipelines/{}.yml: {}", pipeline.name, err));
                     }
                 }
-                Err(err) => problems.push(format!(
-                    "bee/pipelines/{}.yml: {}",
-                    pipeline.name, err
-                )),
+                Err(err) => problems.push(format!("bee/pipelines/{}.yml: {}", pipeline.name, err)),
             },
             Err(err) => problems.push(format!(
                 "bee/pipelines/{}.yml: cannot read file: {}",
@@ -211,8 +205,13 @@ pub fn logs_list_command() -> Result<()> {
 pub fn logs_task_command(name: &str) -> Result<()> {
     safety::validate_name("task", name)?;
     let path = PathBuf::from("bee/logs").join(format!("{}.log", name));
-    let content = fs::read_to_string(&path)
-        .map_err(|_| anyhow!("no log for task '{}' (file '{}' not found)", name, path.display()))?;
+    let content = fs::read_to_string(&path).map_err(|_| {
+        anyhow!(
+            "no log for task '{}' (file '{}' not found)",
+            name,
+            path.display()
+        )
+    })?;
     if ui::json_mode() {
         ui::print_json(&json::object! {
             "task" => name,
@@ -230,8 +229,8 @@ pub fn logs_task_command(name: &str) -> Result<()> {
 
 pub fn show_command(kind: &str, name: &str) -> Result<()> {
     let path = definition_path(kind, name)?;
-    let content = fs::read_to_string(&path)
-        .map_err(|_| anyhow!("{} '{}' not found", kind, name))?;
+    let content =
+        fs::read_to_string(&path).map_err(|_| anyhow!("{} '{}' not found", kind, name))?;
     // Parsing here means `bee show` never presents an invalid definition as valid.
     match kind {
         "task" => {
@@ -300,7 +299,10 @@ pub fn status_json() -> Result<json::JsonValue> {
         })
         .map(|task| task.name.as_str())
         .collect();
-    let cached_names: json::Array = cached.iter().map(|name| json::JsonValue::from(*name)).collect();
+    let cached_names: json::Array = cached
+        .iter()
+        .map(|name| json::JsonValue::from(*name))
+        .collect();
     Ok(json::object! {
         "pipelines" => pipelines.len(),
         "tasks" => tasks.len(),

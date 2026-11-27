@@ -134,7 +134,10 @@ pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) ->
                 println!("  {} already installed, skipping.", name);
                 return Ok(false);
             }
-            println!("  {} is installed at a different version, reinstalling.", name);
+            println!(
+                "  {} is installed at a different version, reinstalling.",
+                name
+            );
             fs::remove_dir_all(&deps_dir)?;
         }
 

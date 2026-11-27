@@ -22,7 +22,9 @@ fn state_path(base: &str, key: &str) -> PathBuf {
 }
 
 fn staging_dir(task: &str) -> PathBuf {
-    trigger_dir(".").join(".pending").join(hash::hash_string(task))
+    trigger_dir(".")
+        .join(".pending")
+        .join(hash::hash_string(task))
 }
 
 pub fn get_state(key: &str) -> Option<String> {

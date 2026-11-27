@@ -21,8 +21,8 @@ fn update_deps_hash() -> Result<()> {
 
 fn run_install_script(name: &str) -> Result<()> {
     safety::validate_name("dependency", name)?;
-    let script_path = safety::safe_path("bee/scripts/install", "dependency", name)?
-        .with_extension("sh");
+    let script_path =
+        safety::safe_path("bee/scripts/install", "dependency", name)?.with_extension("sh");
     let script_path = std::fs::canonicalize(&script_path)
         .map_err(|_| anyhow::anyhow!("install script not found for dependency '{}'", name))?;
     let work_dir = safety::safe_path("bee/deps", "dependency", name)?;
@@ -184,8 +184,8 @@ pub fn add_dep(
         ));
     }
     if let Some(script) = install_script {
-        let script_path = safety::safe_path("bee/scripts/install", "dependency", name)?
-            .with_extension("sh");
+        let script_path =
+            safety::safe_path("bee/scripts/install", "dependency", name)?.with_extension("sh");
         fs::create_dir_all("bee/scripts/install")?;
         file::write_file_content(&script_path.to_string_lossy(), script)?;
         #[cfg(unix)]
@@ -229,8 +229,8 @@ pub fn remove_dep(name: &str) -> Result<()> {
         fs::remove_dir_all(&deps_dir)?;
         println!("Removed installed dependency from {}", deps_dir.display());
     }
-    let script_path = safety::safe_path("bee/scripts/install", "dependency", name)?
-        .with_extension("sh");
+    let script_path =
+        safety::safe_path("bee/scripts/install", "dependency", name)?.with_extension("sh");
     if script_path.exists() {
         fs::remove_file(&script_path)?;
     }

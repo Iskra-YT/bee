@@ -8,7 +8,11 @@ use clap::{Args, Parser, Subcommand};
 )]
 pub struct Cli {
     /// Emit machine-readable JSON where the command supports it
-    #[arg(long, global = true, help = "Emit machine-readable JSON where supported")]
+    #[arg(
+        long,
+        global = true,
+        help = "Emit machine-readable JSON where supported"
+    )]
     pub json: bool,
 
     /// Disable ANSI colors in status output
@@ -16,7 +20,11 @@ pub struct Cli {
     pub no_color: bool,
 
     /// Show what would happen without executing tasks
-    #[arg(long, global = true, help = "Print planned actions without running tasks")]
+    #[arg(
+        long,
+        global = true,
+        help = "Print planned actions without running tasks"
+    )]
     pub dry_run: bool,
 
     #[command(subcommand)]
@@ -92,7 +100,10 @@ pub enum Commands {
     Schedule(ScheduleArgs),
 
     /// Validate configuration and report problems
-    #[command(about = "Check configuration integrity (alias: doctor)", visible_alias = "doctor")]
+    #[command(
+        about = "Check configuration integrity (alias: doctor)",
+        visible_alias = "doctor"
+    )]
     Validate,
 
     /// Read task logs

@@ -67,9 +67,11 @@ fn get_backup_hash() -> Result<String> {
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
-                entries.push(format!("{}:{}", entry.path().display(), hash::hash_file(
-                    &entry.path().to_string_lossy()
-                )?));
+                entries.push(format!(
+                    "{}:{}",
+                    entry.path().display(),
+                    hash::hash_file(&entry.path().to_string_lossy())?
+                ));
             }
         }
     }
@@ -107,11 +109,8 @@ fn cleanup_old_backups() -> Result<()> {
         fs::remove_dir_all(backup_path(hash_val)?)?;
     }
 
-    let remaining: Vec<json::JsonValue> = versions
-        .into_iter()
-        .skip(remove_count)
-        .cloned()
-        .collect();
+    let remaining: Vec<json::JsonValue> =
+        versions.into_iter().skip(remove_count).cloned().collect();
     manifest["versions"] = json::JsonValue::Array(remaining);
     write_manifest(&manifest)
 }
@@ -143,7 +142,10 @@ pub fn make_backup() -> Result<()> {
     let backup_path = backup_path(&short_hash)?;
 
     if backup_path.exists() {
-        println!("Identical configuration already backed up as {}", short_hash);
+        println!(
+            "Identical configuration already backed up as {}",
+            short_hash
+        );
         return Ok(());
     }
 
@@ -151,7 +153,10 @@ pub fn make_backup() -> Result<()> {
     for dir in ["bee/tasks", "bee/pipelines", "bee/rules"] {
         let src = Path::new(dir);
         if src.exists() {
-            copy_dir_all(src, &backup_path.join(dir.strip_prefix("bee/").unwrap_or(dir)))?;
+            copy_dir_all(
+                src,
+                &backup_path.join(dir.strip_prefix("bee/").unwrap_or(dir)),
+            )?;
         }
     }
 

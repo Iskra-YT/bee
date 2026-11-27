@@ -22,7 +22,11 @@ impl ExecutorRegistry {
         Self
     }
 
-    pub fn execute(&self, task: &Task, interactive: bool) -> Result<ExecutionResult, ExecutionError> {
+    pub fn execute(
+        &self,
+        task: &Task,
+        interactive: bool,
+    ) -> Result<ExecutionResult, ExecutionError> {
         let resolved =
             resolve_task_for_platform(task).map_err(|e| ExecutionError::InvalidConfig {
                 task: task.name.clone(),
@@ -72,15 +76,16 @@ fn build_context(task: &Task) -> Result<ExecutionContext, ExecutionError> {
         }
     });
     context.inherit_env = task.inherit_env.unwrap_or(true);
-    context.options.timeout = match &task.timeout {
-        Some(value) => Some(
-            crate::time::parse_duration(value).map_err(|e| ExecutionError::InvalidConfig {
-                task: task.name.clone(),
-                message: e.to_string(),
-            })?,
-        ),
-        None => None,
-    };
+    context.options.timeout =
+        match &task.timeout {
+            Some(value) => Some(crate::time::parse_duration(value).map_err(|e| {
+                ExecutionError::InvalidConfig {
+                    task: task.name.clone(),
+                    message: e.to_string(),
+                }
+            })?),
+            None => None,
+        };
     context.env = build_env(task);
     context.interpreter = task.interpreter.clone();
     context.interpreter_candidates = task.interpreter_candidates();

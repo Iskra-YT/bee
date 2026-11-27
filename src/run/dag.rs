@@ -11,8 +11,7 @@ pub fn build_dag(config: crate::parser::Pipeline) -> Result<(Vec<NodeIndex>, DiG
     let mut tasks: Vec<Task> = Vec::new();
 
     for task_name in &config.tasks {
-        let path = crate::safety::safe_path("bee/tasks", "task", task_name)?
-            .with_extension("yml");
+        let path = crate::safety::safe_path("bee/tasks", "task", task_name)?.with_extension("yml");
         let content = file::get_file_content(&path.to_string_lossy())
             .map_err(|e| anyhow::anyhow!("failed to read task '{}': {}", task_name, e))?;
         let task = reader::read_task_from_string(&content, task_name)
@@ -47,10 +46,7 @@ pub fn build_dag(config: crate::parser::Pipeline) -> Result<(Vec<NodeIndex>, DiG
             .node_weight(node)
             .map(|task| task.name.clone())
             .unwrap_or_else(|| format!("node {:?}", node));
-        anyhow::anyhow!(
-            "cycle detected in task dependencies at task '{}'",
-            name
-        )
+        anyhow::anyhow!("cycle detected in task dependencies at task '{}'", name)
     })?;
 
     Ok((topo_order, graph))

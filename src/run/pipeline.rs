@@ -52,10 +52,7 @@ fn run_pipeline_recursive(
     let sub_failure = if sub_failed.is_empty() {
         None
     } else {
-        Some(format!(
-            "subpipeline(s) failed: {}",
-            sub_failed.join(", ")
-        ))
+        Some(format!("subpipeline(s) failed: {}", sub_failed.join(", ")))
     };
 
     let result = run_pipeline_tasks(config);
@@ -128,12 +125,7 @@ fn run_pipeline_tasks(config: crate::parser::Pipeline) -> Result<()> {
                 names.join(", ")
             ));
         } else {
-            crate::ui::info(format!(
-                "[{}/{}] {}",
-                i + 1,
-                order.len(),
-                names.join(", ")
-            ));
+            crate::ui::info(format!("[{}/{}] {}", i + 1, order.len(), names.join(", ")));
         }
 
         let layer_failed = parallel::run_parallel_tasks(&graph, filtered);

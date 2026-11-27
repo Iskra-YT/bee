@@ -136,11 +136,14 @@ fn parse_field(part: &str, field: Field) -> Result<Vec<u32>> {
         }
         let (range, step) = match item.split_once('/') {
             Some((range, step)) => {
-                let step: u32 = step.parse().map_err(|_| {
-                    anyhow!("invalid cron field '{}': step must be a number", part)
-                })?;
+                let step: u32 = step
+                    .parse()
+                    .map_err(|_| anyhow!("invalid cron field '{}': step must be a number", part))?;
                 if step == 0 {
-                    return Err(anyhow!("invalid cron field '{}': step cannot be zero", part));
+                    return Err(anyhow!(
+                        "invalid cron field '{}': step cannot be zero",
+                        part
+                    ));
                 }
                 (range, step)
             }
@@ -276,13 +279,10 @@ pub fn run_pass(now: &DateTime<Local>) -> Result<usize> {
                 rule.task, rule.name
             ));
             match crate::run::run_task(rule.task.clone(), true, false) {
-                Ok(()) => {
-                    crate::ui::info(format!("schedule: task '{}' completed", rule.task))
+                Ok(()) => crate::ui::info(format!("schedule: task '{}' completed", rule.task)),
+                Err(err) => {
+                    crate::ui::einfo(format!("schedule: task '{}' failed: {}", rule.task, err))
                 }
-                Err(err) => crate::ui::einfo(format!(
-                    "schedule: task '{}' failed: {}",
-                    rule.task, err
-                )),
             }
             crate::run::cache::save_state_final(&key, &now.to_rfc3339())?;
         }
@@ -295,7 +295,9 @@ pub fn run_pass(now: &DateTime<Local>) -> Result<usize> {
 /// exits, which is also useful for cron-driven one-shot invocations.
 pub fn run_daemon(interval: u64, once: bool) -> Result<()> {
     if interval == 0 {
-        return Err(anyhow!("schedule run: --interval must be at least 1 second"));
+        return Err(anyhow!(
+            "schedule run: --interval must be at least 1 second"
+        ));
     }
     let rules = scheduled_rules()?;
     if rules.is_empty() && !once {

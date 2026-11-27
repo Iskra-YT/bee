@@ -33,8 +33,7 @@ pub fn run_all() -> Result<()> {
 }
 
 pub fn run_task(name: String, force: bool, interactive: bool) -> Result<()> {
-    let task_file = crate::safety::safe_path("bee/tasks", "task", &name)?
-        .with_extension("yml");
+    let task_file = crate::safety::safe_path("bee/tasks", "task", &name)?.with_extension("yml");
     let content = crate::file::get_file_content(&task_file.to_string_lossy())
         .map_err(|_| anyhow::anyhow!("task '{}' not found; run 'bee task list'", name))?;
     let task = parser::read_task_from_string(&content, &name)?;
@@ -69,7 +68,10 @@ pub fn dry_run_pipeline(name: &str) -> Result<()> {
         groups.len()
     ));
     for (index, group) in groups.iter().enumerate() {
-        let names: Vec<&str> = group.iter().map(|node| graph[*node].name.as_str()).collect();
+        let names: Vec<&str> = group
+            .iter()
+            .map(|node| graph[*node].name.as_str())
+            .collect();
         crate::ui::info(format!(
             "[dry-run] [{}] would run: {}",
             index + 1,

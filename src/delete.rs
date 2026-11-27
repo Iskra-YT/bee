@@ -19,16 +19,14 @@ fn remove_registered(kind: &str, name: &str, dir: &str) -> Result<()> {
         fs::remove_file(&staged)?;
     }
     fs::rename(&path, &staged)?;
-    let updated = yaml::modify::remove_from_yaml_list(
-        "bee/system/config.yml",
-        &format!("{}s", kind),
-        name,
-    )
-    .and_then(|_| {
-        let config_hash = hash::hash_string(&file::get_file_content("bee/system/config.yml")?);
-        hash::write_hash_file("bee/system/hash/config", &config_hash)?;
-        Ok(())
-    });
+    let updated =
+        yaml::modify::remove_from_yaml_list("bee/system/config.yml", &format!("{}s", kind), name)
+            .and_then(|_| {
+                let config_hash =
+                    hash::hash_string(&file::get_file_content("bee/system/config.yml")?);
+                hash::write_hash_file("bee/system/hash/config", &config_hash)?;
+                Ok(())
+            });
     match updated {
         Ok(()) => {
             fs::remove_file(&staged)?;

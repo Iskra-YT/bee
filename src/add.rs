@@ -162,9 +162,7 @@ pub fn create_rule(name: &String, task: &str) -> Result<()> {
         task: task.to_owned(),
         triggers: vec![parser::RuleTrigger::Manual],
     };
-    crate::parser::reader::config::read_rules_from_string(&serde_yaml::to_string(
-        &rule_config,
-    )?)?;
+    crate::parser::reader::config::read_rules_from_string(&serde_yaml::to_string(&rule_config)?)?;
 
     let path = safety::safe_path("bee/rules", "rule", name)?.with_extension("yml");
     yaml::writer::save_yaml(&path.to_string_lossy(), &rule_config)?;

@@ -10,7 +10,11 @@ fn validate_registry_names(kind: &str, names: &[String]) -> Result<()> {
     for name in names {
         safety::validate_name(kind, name)?;
         if !seen.insert(name) {
-            return Err(anyhow!("duplicate {} '{}' in bee/system/config.yml", kind, name));
+            return Err(anyhow!(
+                "duplicate {} '{}' in bee/system/config.yml",
+                kind,
+                name
+            ));
         }
     }
     Ok(())
@@ -77,8 +81,8 @@ pub fn read_pipelines() -> Result<Vec<Pipeline>> {
 }
 
 pub fn read_pipeline_from_string(content: &str) -> Result<Pipeline> {
-    let pipeline: Pipeline = serde_yaml::from_str(content)
-        .map_err(|e| anyhow!("invalid pipeline YAML: {}", e))?;
+    let pipeline: Pipeline =
+        serde_yaml::from_str(content).map_err(|e| anyhow!("invalid pipeline YAML: {}", e))?;
     safety::validate_name("pipeline", &pipeline.name)?;
 
     let mut seen = std::collections::HashSet::new();
@@ -132,8 +136,8 @@ pub fn read_task_from_string(content: &str, name: &str) -> Result<Task> {
 }
 
 pub fn read_rules_from_string(content: &str) -> Result<Rule> {
-    let rule: Rule = serde_yaml::from_str(content)
-        .map_err(|e| anyhow!("invalid rule YAML: {}", e))?;
+    let rule: Rule =
+        serde_yaml::from_str(content).map_err(|e| anyhow!("invalid rule YAML: {}", e))?;
     safety::validate_name("rule", &rule.name)?;
     safety::validate_name("task reference", &rule.task)?;
 
@@ -197,9 +201,7 @@ fn validate_trigger(rule_name: &str, trigger: &RuleTrigger) -> Result<()> {
         RuleTrigger::SubsystemChanged { subsystem } => {
             safety::validate_name("subsystem reference", subsystem)?;
         }
-        RuleTrigger::GitTag { pattern: _ }
-        | RuleTrigger::Manual
-        | RuleTrigger::Always => {}
+        RuleTrigger::GitTag { pattern: _ } | RuleTrigger::Manual | RuleTrigger::Always => {}
     }
     Ok(())
 }

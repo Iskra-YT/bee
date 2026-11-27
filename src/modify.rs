@@ -165,10 +165,7 @@ fn required(params: &mut std::collections::HashMap<String, String>, key: &str) -
         .remove(key)
         .ok_or_else(|| anyhow::anyhow!("--trigger-param {}=... is required", key))?;
     if value.trim().is_empty() {
-        return Err(anyhow::anyhow!(
-            "--trigger-param {} cannot be empty",
-            key
-        ));
+        return Err(anyhow::anyhow!("--trigger-param {} cannot be empty", key));
     }
     Ok(value)
 }
@@ -204,8 +201,11 @@ fn build_trigger(trigger_type: &str, trigger_params: &[String]) -> Result<Value>
             let paths = csv_param(&mut params, "paths")?;
             mapping.insert(Value::String("paths".into()), paths);
         }
-        "task_completed" | "task_failed" | "dependency_changed"
-        | "parent_task_completed" | "parent_task_failed" => {
+        "task_completed"
+        | "task_failed"
+        | "dependency_changed"
+        | "parent_task_completed"
+        | "parent_task_failed" => {
             let task = required(&mut params, "task")?;
             mapping.insert(Value::String("task".into()), Value::String(task));
         }

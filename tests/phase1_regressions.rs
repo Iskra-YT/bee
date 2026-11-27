@@ -185,8 +185,8 @@ fn backup_hash_tracks_content_and_restore_is_exact() {
         .args(["backup", "create"])
         .assert()
         .success();
-    let manifest: json::JsonValue = json::parse(&project.read("bee/system/backup/.manifest.json"))
-        .expect("valid manifest");
+    let manifest: json::JsonValue =
+        json::parse(&project.read("bee/system/backup/.manifest.json")).expect("valid manifest");
     let first_hash = manifest["versions"][0]["hash"]
         .as_str()
         .expect("backup hash")
@@ -200,13 +200,16 @@ fn backup_hash_tracks_content_and_restore_is_exact() {
         .args(["backup", "create"])
         .assert()
         .success();
-    let second: json::JsonValue = json::parse(&project.read("bee/system/backup/.manifest.json"))
-        .expect("valid manifest");
+    let second: json::JsonValue =
+        json::parse(&project.read("bee/system/backup/.manifest.json")).expect("valid manifest");
     let second_hash = second["versions"][1]["hash"]
         .as_str()
         .expect("second backup hash")
         .to_string();
-    assert_ne!(first_hash, second_hash, "content change must change the hash");
+    assert_ne!(
+        first_hash, second_hash,
+        "content change must change the hash"
+    );
 
     bee(project.path())
         .args(["backup", "restore", &first_hash])
@@ -228,10 +231,7 @@ fn unsafe_names_are_rejected_everywhere() {
         vec!["rule", "create", "../evil", "--task", "build"],
         vec!["backup", "restore", "../evil"],
     ] {
-        bee(project.path())
-            .args(args.clone())
-            .assert()
-            .failure();
+        bee(project.path()).args(args.clone()).assert().failure();
     }
 }
 
@@ -247,12 +247,12 @@ fn init_does_not_wipe_an_existing_bee_directory_without_consent() {
         .write_stdin("n\n")
         .assert()
         .failure();
-    assert!(bee_dir.join("sentinel").exists(), "file was deleted without consent");
+    assert!(
+        bee_dir.join("sentinel").exists(),
+        "file was deleted without consent"
+    );
 
-    bee(dir.path())
-        .args(["init", "--yes"])
-        .assert()
-        .success();
+    bee(dir.path()).args(["init", "--yes"]).assert().success();
     assert!(
         !bee_dir.join("sentinel").exists(),
         "--yes should replace the existing directory"

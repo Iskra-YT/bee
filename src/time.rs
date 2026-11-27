@@ -27,13 +27,20 @@ pub fn parse_duration(value: &str) -> Result<Duration> {
         (value, 1_000)
     };
 
-    let amount: u64 = amount
-        .parse()
-        .map_err(|_| anyhow!("invalid timeout '{}': expected a number with optional s/m/h/ms suffix", value))?;
+    let amount: u64 = amount.parse().map_err(|_| {
+        anyhow!(
+            "invalid timeout '{}': expected a number with optional s/m/h/ms suffix",
+            value
+        )
+    })?;
     if amount == 0 {
-        return Err(anyhow!("invalid timeout '{}': must be greater than zero", value));
+        return Err(anyhow!(
+            "invalid timeout '{}': must be greater than zero",
+            value
+        ));
     }
-    let millis = amount.checked_mul(multiplier)
+    let millis = amount
+        .checked_mul(multiplier)
         .ok_or_else(|| anyhow!("invalid timeout '{}': value is too large", value))?;
     Ok(Duration::from_millis(millis))
 }

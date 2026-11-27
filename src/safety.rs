@@ -34,9 +34,10 @@ pub fn validate_name(label: &str, name: &str) -> Result<()> {
             name
         ));
     }
-    if !name.chars().all(|c| {
-        c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.' || c == '+'
-    }) {
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.' || c == '+')
+    {
         return Err(anyhow!(
             "invalid {} name '{}': allowed characters are letters, digits, '_', '-', '.', '+'",
             label,

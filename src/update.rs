@@ -30,8 +30,8 @@ pub fn run_update() -> Result<()> {
     let asset_url = find_asset_url(&release, &asset_name)?;
 
     // Fail closed: without a signed-off checksum list there is no update.
-    let checksums_url = find_asset_url(&release, "SHA256SUMS")
-        .map_err(|e| anyhow!("refusing to update: {}", e))?;
+    let checksums_url =
+        find_asset_url(&release, "SHA256SUMS").map_err(|e| anyhow!("refusing to update: {}", e))?;
     let tmp_dir = make_tmp_dir()?;
     let archive_path = tmp_dir.join(&asset_name);
     let checksums_path = tmp_dir.join("SHA256SUMS");
@@ -75,7 +75,10 @@ pub fn run_update() -> Result<()> {
             "  The new binary is staged at '{}' because Windows keeps the running executable locked.",
             staged_path(&current_exe).display()
         );
-        println!("  Run '{}' once to finish the update.", helper_path(&current_exe).display());
+        println!(
+            "  Run '{}' once to finish the update.",
+            helper_path(&current_exe).display()
+        );
     }
     Ok(())
 }
@@ -315,7 +318,9 @@ fn extract_archive(archive: &Path, dest: &Path, ext: &str) -> Result<()> {
         cmd
     };
     cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
-    let status = cmd.status().map_err(|e| anyhow!("Failed to extract archive: {}", e))?;
+    let status = cmd
+        .status()
+        .map_err(|e| anyhow!("Failed to extract archive: {}", e))?;
     if !status.success() {
         return Err(anyhow!(
             "Archive extraction failed (exit code {})",
@@ -326,14 +331,12 @@ fn extract_archive(archive: &Path, dest: &Path, ext: &str) -> Result<()> {
 }
 
 fn find_extracted_binary(extract_dir: &Path, binary_name: &str) -> Result<PathBuf> {
-    let candidates = vec![extract_dir.join(binary_name)]
-        .into_iter()
-        .chain(
-            fs::read_dir(extract_dir)?
-                .filter_map(Result::ok)
-                .filter(|entry| entry.file_type().map(|t| t.is_dir()).unwrap_or(false))
-                .map(|entry| entry.path().join(binary_name)),
-        );
+    let candidates = vec![extract_dir.join(binary_name)].into_iter().chain(
+        fs::read_dir(extract_dir)?
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().map(|t| t.is_dir()).unwrap_or(false))
+            .map(|entry| entry.path().join(binary_name)),
+    );
     let canonical_dir = fs::canonicalize(extract_dir)?;
     for candidate in candidates {
         if !candidate.is_file() {
@@ -454,16 +457,16 @@ fn copy_for_execution(src: &Path, dst: &Path) -> Result<()> {
 
 /// Install a verified binary. Returns `false` when the update was staged for
 /// the Windows helper because the running executable could not be replaced.
-pub fn install_binary(new_binary: &Path, current_exe: &Path, expected_sha: Option<&str>) -> Result<bool> {
+pub fn install_binary(
+    new_binary: &Path,
+    current_exe: &Path,
+    expected_sha: Option<&str>,
+) -> Result<bool> {
     let parent = current_exe
         .parent()
         .ok_or_else(|| anyhow!("cannot determine the directory of the current executable"))?;
     let stamp = chrono::Utc::now().timestamp_millis();
-    let temp = parent.join(format!(
-        ".bee-update-{}-{}",
-        std::process::id(),
-        stamp
-    ));
+    let temp = parent.join(format!(".bee-update-{}-{}", std::process::id(), stamp));
     let backup = parent.join(format!(
         "{}.old-{}",
         current_exe

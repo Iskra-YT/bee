@@ -14,9 +14,12 @@ fn validate_archive_members(program: &str, args: &[&str]) -> Result<()> {
     for line in String::from_utf8_lossy(&output.stdout).lines() {
         let path = std::path::Path::new(line.trim());
         if path.is_absolute()
-            || path
-                .components()
-                .any(|c| matches!(c, std::path::Component::ParentDir | std::path::Component::RootDir))
+            || path.components().any(|c| {
+                matches!(
+                    c,
+                    std::path::Component::ParentDir | std::path::Component::RootDir
+                )
+            })
         {
             return Err(anyhow::anyhow!(
                 "archive contains an unsafe path ('{}'); refusing to extract",
@@ -49,9 +52,9 @@ pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) ->
     if deps_dir.exists() && !update {
         let has_files = fs::read_dir(&deps_dir)
             .map(|entries| {
-                entries.filter_map(Result::ok).any(|entry| {
-                    entry.file_name() != std::ffi::OsStr::new(".bee-version")
-                })
+                entries
+                    .filter_map(Result::ok)
+                    .any(|entry| entry.file_name() != std::ffi::OsStr::new(".bee-version"))
             })
             .unwrap_or(false);
         let version_matches = match version {
@@ -65,7 +68,10 @@ pub fn install(name: &str, source: &str, version: Option<&str>, update: bool) ->
             return Ok(false);
         }
         if has_files && !version_matches {
-            println!("  {} is installed at a different version, reinstalling.", name);
+            println!(
+                "  {} is installed at a different version, reinstalling.",
+                name
+            );
         }
     }
 
