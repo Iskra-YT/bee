@@ -39,7 +39,9 @@ fn bee(dir: &std::path::Path) -> Command {
 fn timeout_kills_a_running_task_and_fails_fast() {
     let project = Project::new();
     let run = if cfg!(windows) {
-        "ping -n 60 127.0.0.1 > NUL"
+        // Keep the loop inside cmd.exe: a child process would inherit the
+        // output pipes and keep them open after the timeout kills cmd.exe.
+        "for /L %i in (1,1,2147483647) do @rem"
     } else {
         "while true; do :; done"
     };

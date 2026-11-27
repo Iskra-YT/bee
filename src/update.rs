@@ -361,10 +361,24 @@ fn find_extracted_binary(extract_dir: &Path, binary_name: &str) -> Result<PathBu
 /// Run `bee version` on a candidate binary. A release binary must report the
 /// commit SHA it was built from; unknown or missing output is a hard failure.
 pub fn smoketest(binary: &Path, expected_sha: Option<&str>) -> Result<()> {
-    let output = Command::new(binary)
-        .arg("version")
-        .output()
-        .map_err(|e| anyhow!("smoke test could not start '{}': {}", binary.display(), e))?;
+    // A freshly written binary can briefly report ETXTBSY on busy filesystems.
+    let mut attempts = 0;
+    let output = loop {
+        match Command::new(binary).arg("version").output() {
+            Ok(output) => break output,
+            Err(error) if error.raw_os_error() == Some(26) && attempts < 5 => {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+                attempts += 1;
+            }
+            Err(error) => {
+                return Err(anyhow!(
+                    "smoke test could not start '{}': {}",
+                    binary.display(),
+                    error
+                ))
+            }
+        }
+    };
     if !output.status.success() {
         return Err(anyhow!(
             "smoke test failed: '{} version' exited with code {}",
