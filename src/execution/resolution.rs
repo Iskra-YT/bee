@@ -53,17 +53,30 @@ pub fn resolve_interpreter_for_task(task: &crate::parser::Task) -> Result<String
     resolve_interpreter(&task.name, &candidates)
 }
 
-/// Microsoft Store aliases are two-byte `MZ` reparse points that only open the Store.
+/// Microsoft Store aliases live directly in `WindowsApps` and only open the Store.
 fn is_store_alias(path: &Path) -> bool {
-    let Ok(metadata) = std::fs::metadata(path) else {
-        return false;
-    };
-    if metadata.len() > 2 {
-        return false;
+    let in_windows_apps = path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("WindowsApps"));
+    let python_alias = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .is_some_and(|stem| {
+            let lower = stem.to_ascii_lowercase();
+            lower == "python" || lower == "python3"
+        });
+    if in_windows_apps && python_alias {
+        return true;
     }
-    std::fs::read(path)
-        .map(|bytes| bytes.starts_with(b"MZ"))
-        .unwrap_or(false)
+    let size = std::fs::symlink_metadata(path)
+        .or_else(|_| std::fs::metadata(path))
+        .map(|metadata| metadata.len())
+        .unwrap_or(0);
+    size <= 2
+        && std::fs::read(path)
+            .map(|bytes| bytes.starts_with(b"MZ"))
+            .unwrap_or(false)
 }
 
 /// Check whether a file is a real executable, not a Microsoft Store alias.
@@ -210,5 +223,15 @@ mod tests {
         assert!(!is_usable_program(&alias));
         assert!(is_usable_program(&real));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn windows_apps_python_alias_is_rejected_even_when_metadata_fails() {
+        let alias = Path::new("/c/Users/test/AppData/Local/Microsoft/WindowsApps/python3.exe");
+        assert!(is_store_alias(alias));
+        let installed = Path::new(
+            "/c/Users/test/AppData/Local/Microsoft/WindowsApps/PythonSoftwareFoundation/python.exe",
+        );
+        assert!(!is_store_alias(installed));
     }
 }
