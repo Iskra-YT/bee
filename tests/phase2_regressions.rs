@@ -38,8 +38,15 @@ fn bee(dir: &std::path::Path) -> Command {
 #[test]
 fn timeout_kills_a_running_task_and_fails_fast() {
     let project = Project::new();
-    project
-        .write_task("name: build\nexecutor: shell\nrun: \"while true; do :; done\"\ntimeout: 1s\n");
+    let run = if cfg!(windows) {
+        "ping -n 60 127.0.0.1 > NUL"
+    } else {
+        "while true; do :; done"
+    };
+    project.write_task(&format!(
+        "name: build\nexecutor: shell\nrun: \"{}\"\ntimeout: 1s\n",
+        run
+    ));
 
     let started = Instant::now();
     let assert = bee(project.path())
@@ -57,7 +64,12 @@ fn timeout_kills_a_running_task_and_fails_fast() {
 #[test]
 fn inherit_env_false_drops_unrelated_variables() {
     let project = Project::new();
-    project.write_task("name: build\nexecutor: shell\nrun: 'printf \"%s\" \"$BEE_TEST_VAR\"'\n");
+    let run = if cfg!(windows) {
+        "echo %BEE_TEST_VAR%"
+    } else {
+        "printf \"%s\" \"$BEE_TEST_VAR\""
+    };
+    project.write_task(&format!("name: build\nexecutor: shell\nrun: '{}'\n", run));
     bee(project.path())
         .env("BEE_TEST_VAR", "visible-value")
         .args(["task", "run", "build"])
@@ -65,9 +77,10 @@ fn inherit_env_false_drops_unrelated_variables() {
         .success();
     assert!(project.log().contains("visible-value"));
 
-    project.write_task(
-        "name: build\nexecutor: shell\nrun: 'printf \"%s\" \"$BEE_TEST_VAR\"'\ninherit_env: false\n",
-    );
+    project.write_task(&format!(
+        "name: build\nexecutor: shell\nrun: '{}'\ninherit_env: false\n",
+        run
+    ));
     bee(project.path())
         .env("BEE_TEST_VAR", "visible-value")
         .args(["task", "run", "build"])
