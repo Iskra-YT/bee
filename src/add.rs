@@ -40,6 +40,7 @@ pub fn create_task(
         run: run_cmd,
         depends_on: deps,
         executor,
+        executor_candidates: None,
         program,
         args: if args.is_empty() { None } else { Some(args) },
         shell,

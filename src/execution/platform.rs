@@ -1,4 +1,4 @@
-use crate::parser::{PlatformOverride, Task};
+use crate::parser::{ExecutorSpec, PlatformOverride, Task};
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 
@@ -41,8 +41,10 @@ fn validate_platform_keys(
 }
 
 fn apply_override(task: &mut Task, override_cfg: &PlatformOverride) {
-    if let Some(v) = &override_cfg.executor {
-        task.executor = Some(v.clone());
+    if let Some(v) = &override_cfg.executor_candidates {
+        task.set_executor_spec(ExecutorSpec::List(v.clone()));
+    } else if let Some(v) = &override_cfg.executor {
+        task.set_executor_spec(ExecutorSpec::Single(v.clone()));
     }
     if let Some(v) = &override_cfg.run {
         task.run = Some(v.clone());

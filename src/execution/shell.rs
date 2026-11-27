@@ -3,6 +3,10 @@ use crate::execution::error::ExecutionError;
 use crate::execution::executor::{ExecutionResult, Executor};
 use crate::execution::process::run_process;
 
+/// Re-exported for compatibility: executable discovery lives in
+/// [`crate::execution::resolution`] and is shared by all executors.
+pub use crate::execution::resolution::program_exists;
+
 pub struct ShellExecutor;
 
 impl Executor for ShellExecutor {
@@ -69,38 +73,4 @@ pub fn default_shell() -> String {
     } else {
         "sh".to_string()
     }
-}
-
-pub fn program_exists(program: &str) -> bool {
-    if std::path::Path::new(program).components().count() > 1 {
-        return std::path::Path::new(program).exists();
-    }
-
-    let Some(path_var) = std::env::var_os("PATH") else {
-        return false;
-    };
-
-    for dir in std::env::split_paths(&path_var) {
-        let candidate = dir.join(program);
-        if candidate.is_file() {
-            return true;
-        }
-        #[cfg(windows)]
-        {
-            let pathext =
-                std::env::var("PATHEXT").unwrap_or_else(|_| ".EXE;.CMD;.BAT;.COM".to_string());
-            for ext in pathext.split(';').filter(|e| !e.is_empty()) {
-                let ext = if ext.starts_with('.') {
-                    ext.to_string()
-                } else {
-                    format!(".{}", ext)
-                };
-                let candidate = dir.join(format!("{}{}", program, ext));
-                if candidate.is_file() {
-                    return true;
-                }
-            }
-        }
-    }
-    false
 }

@@ -14,6 +14,10 @@ pub enum ExecutionError {
         task: String,
         executor: String,
     },
+    ExecutorNotFound {
+        task: String,
+        candidates: Vec<String>,
+    },
     UnsupportedPlatform {
         task: String,
         platform: String,
@@ -58,6 +62,14 @@ impl fmt::Display for ExecutionError {
             }
             ExecutionError::UnsupportedExecutor { task, executor } => {
                 write!(f, "Task '{}': unsupported executor '{}'", task, executor)
+            }
+            ExecutionError::ExecutorNotFound { task, candidates } => {
+                write!(
+                    f,
+                    "Task '{}': no available executor found; tried: {} (install one of these or update the 'executor' list)",
+                    task,
+                    candidates.join(", ")
+                )
             }
             ExecutionError::UnsupportedPlatform { task, platform } => {
                 write!(f, "Task '{}': unsupported platform '{}'", task, platform)

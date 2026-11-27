@@ -267,6 +267,33 @@ args:
   - json
 ```
 
+#### Executor fallback (executable candidates)
+
+A single `executor` string can name an executable directly instead of a built-in mode. Use a YAML list to provide alternatives: Bee tries candidates in the order given and runs the first one found as a path or on `PATH`.
+
+```yaml
+name: generate-report
+executor:
+  - python3
+  - python
+  - py
+script: scripts/report.py
+args:
+  - --format
+  - json
+```
+
+```yaml
+name: python-version
+executor:
+  - python3
+  - python
+args:
+  - --version
+```
+
+The same syntax works as a platform override, e.g. `windows: {executor: [python, py]}`.
+
 #### Legacy format (backward compatible)
 
 ```yaml
@@ -282,7 +309,7 @@ Tasks without `executor` and with `run` keep the previous shell-based execution 
 |-------|------|-------------|
 | `name` | string | Task name (must match filename) |
 | `depends_on` | list[string] | Optional task dependencies |
-| `executor` | string | `process`, `shell`, or `script` |
+| `executor` | string or list[string] | Built-in mode (`process`, `shell`, `script`, `legacy`), an executable name, or ordered executable candidates |
 | `run` | string | Command string for `shell`/legacy tasks |
 | `program` | string | Executable for `process` executor |
 | `args` | list[string] | Arguments for `process`/`script` executors |
@@ -320,6 +347,7 @@ Platform overrides are merged over the default task configuration. Supported pla
 - `.cmd` and `.bat` files are executed through `cmd.exe /C` on Windows.
 - Do not assume `.sh` files are directly executable on Windows; use `executor: shell` or an explicit interpreter.
 - Shell execution is platform-aware; do not assume `bash` is available on Windows.
+- With an executor list, `python` matches `python.exe` via `PATHEXT` (default `.EXE;.CMD;.BAT;.COM`).
 
 #### Cross-platform behavior
 
@@ -327,6 +355,13 @@ Platform overrides are merged over the default task configuration. Supported pla
 - `shell` executor is opt-in for shell syntax.
 - `script` executor runs an explicit interpreter with a script path.
 - Legacy `run` tasks remain supported.
+- Executable fallback examples:
+  - Linux/macOS: `executor: [python3, python]`
+  - Windows: `executor: [python, py]`
+- Candidates are checked sequentially with the first executable found in `PATH`; paths containing a separator are checked directly.
+- An empty executor list is rejected during validation.
+- If no candidate is available, Bee reports all attempted executors, e.g. `no available executor found; tried: python3, python`.
+- Fallback is discovery-only: once an executable has been launched and fails, Bee does not try the next candidate.
 
 ---
 

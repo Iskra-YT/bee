@@ -2,7 +2,7 @@ use crate::execution::context::ExecutionContext;
 use crate::execution::error::ExecutionError;
 use crate::execution::executor::{ExecutionResult, Executor};
 use crate::execution::process::run_process;
-use crate::execution::shell::program_exists;
+use crate::execution::resolution::program_exists;
 
 pub struct ScriptExecutor;
 
