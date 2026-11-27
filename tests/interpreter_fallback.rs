@@ -8,7 +8,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -108,6 +109,21 @@ fn script_task(name: &str, script: Option<String>, candidates: Vec<String>) -> T
     }
 }
 
+/// Freshly written executables can briefly report ETXTBSY on busy CI runners.
+fn run_task_with_retry(task: &Task) -> Result<bee::execution::ExecutionResult, ExecutionError> {
+    for attempt in 0..5 {
+        match execute_task(task) {
+            Err(ExecutionError::Spawn { source, .. })
+                if source.raw_os_error() == Some(26) && attempt < 4 =>
+            {
+                thread::sleep(Duration::from_millis(20));
+            }
+            result => return result,
+        }
+    }
+    unreachable!("retry loop always returns")
+}
+
 #[test]
 fn parses_interpreter_list_and_roundtrips() {
     let yaml = r#"
@@ -175,8 +191,10 @@ fn single_interpreter_string_is_preserved_and_runs() {
     );
     let task: Task = serde_yaml::from_str(&yaml).unwrap();
     assert_eq!(
-        task.interpreter.as_deref(),
-        Some(path_string(&interpreter).as_str())
+        task.interpreter
+            .as_deref()
+            .map(|value| value.replace('\\', "/")),
+        Some(yaml_path(&interpreter))
     );
     assert_eq!(task.interpreter_candidates, None);
     assert_eq!(
@@ -185,7 +203,7 @@ fn single_interpreter_string_is_preserved_and_runs() {
     );
     task.validate().unwrap();
 
-    let result = execute_task(&task).unwrap();
+    let result = run_task_with_retry(&task).unwrap();
     assert!(result.success, "stderr: {}", result.stderr);
     assert!(result.stdout.contains("single-ok"));
 }
@@ -213,7 +231,7 @@ fn build_backend_config_runs_with_interpreter_list() {
         vec!["python3", "python", "py"]
     );
 
-    let result = execute_task(&task).unwrap();
+    let result = run_task_with_retry(&task).unwrap();
     assert!(result.success, "stderr: {}", result.stderr);
     assert!(
         result.stdout.contains("backend-ok:backend"),
@@ -238,7 +256,7 @@ fn first_available_interpreter_is_selected() {
     let selected = resolve_interpreter_for_task(&task).unwrap();
     assert_eq!(selected, path_string(&first));
 
-    let result = execute_task(&task).unwrap();
+    let result = run_task_with_retry(&task).unwrap();
     assert!(result.success, "stderr: {}", result.stderr);
     assert!(result.stdout.contains("first-ok"));
     assert!(!result.stdout.contains("second-ok"));
@@ -259,7 +277,7 @@ fn falls_back_to_second_interpreter() {
     let selected = resolve_interpreter(&task.name, &task.interpreter_candidates()).unwrap();
     assert_eq!(selected, path_string(&second));
 
-    let result = execute_task(&task).unwrap();
+    let result = run_task_with_retry(&task).unwrap();
     assert!(result.success, "stderr: {}", result.stderr);
     assert!(result.stdout.contains("second-ok"));
 }
@@ -278,7 +296,7 @@ fn no_fallback_after_selected_interpreter_fails() {
         vec![path_string(&failing), path_string(&good)],
     );
 
-    let result = execute_task(&task).unwrap();
+    let result = run_task_with_retry(&task).unwrap();
     assert!(!result.success);
     assert_eq!(result.exit_code, 7);
     assert!(!result.stdout.contains("should-not-run"));
@@ -290,7 +308,7 @@ fn no_available_interpreter_lists_all_attempts() {
     let candidates = vec![missing_candidate("a"), missing_candidate("b")];
     let task = script_task("none", Some(path_string(&script)), candidates.clone());
 
-    let err = execute_task(&task).unwrap_err();
+    let err = run_task_with_retry(&task).unwrap_err();
     let message = err.to_string();
     assert!(message.contains("interpreter"), "message: {}", message);
     assert!(message.contains(&candidates[0]), "message: {}", message);
@@ -339,7 +357,7 @@ fn arguments_are_passed_to_selected_interpreter() {
     );
     task.args = Some(vec!["payload".to_string()]);
 
-    let result = execute_task(&task).unwrap();
+    let result = run_task_with_retry(&task).unwrap();
     assert!(result.success, "stderr: {}", result.stderr);
     assert!(
         result.stdout.contains("arg=payload"),
@@ -388,7 +406,7 @@ fn platform_override_can_provide_interpreter_list() {
     let resolved = resolve_task_for_platform(&task).unwrap();
     assert_eq!(resolved.interpreter_candidates(), expected);
 
-    let result = execute_task(&task).unwrap();
+    let result = run_task_with_retry(&task).unwrap();
     assert!(result.success, "stderr: {}", result.stderr);
     assert!(result.stdout.contains("platform-ok"));
 }
