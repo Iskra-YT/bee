@@ -37,6 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           python3 - <<'PY'
           import datetime as dt
@@ -115,9 +116,29 @@ jobs:
               sys.exit(0)
 
           prev_tag = prev_release.get("tag_name", "")
+          prev_name = prev_release.get("name", "")
           prev_published = prev_release.get("published_at")
           m = re.fullmatch(r"bee-([0-9a-f]{40})", prev_tag or "")
           prev_sha = m.group(1) if m else ""
+
+          # Manual releases only need a unique name/tag; the calendar-month
+          # condition applies to scheduled releases only.
+          if os.environ.get("EVENT_NAME") == "workflow_dispatch":
+              duplicate = prev_tag == tag or prev_name == release_name
+              if duplicate:
+                  reason = (
+                      "Pass: manual release skipped because the previous release "
+                      f"has the same name/tag ({prev_tag!r}, {prev_name!r})"
+                  )
+              else:
+                  reason = (
+                      "Manual release allowed: no previous release has the same "
+                      f"name/tag; calendar-month condition skipped. Previous: "
+                      f"{prev_tag!r}, {prev_name!r}."
+                  )
+              print(reason)
+              set_output(should_release=str(not duplicate).lower(), reason=reason, current_sha=current_sha, tag=tag, release_name=release_name, previous_tag=prev_tag)
+              sys.exit(0)
 
           if not prev_published:
               fail(f"Latest release {prev_tag!r} has no published_at timestamp")

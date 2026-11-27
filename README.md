@@ -867,19 +867,21 @@ Bee uses `.github/workflows/release.yml` to build and publish precompiled binari
 
 ### Release conditions
 
-A new release is created only when **both** conditions are true:
+For a **scheduled** release, a new release is created only when **both** conditions are true:
 
 1. The current Git commit SHA differs from the commit SHA used for the last published Bee release.
 2. At least one **calendar month** has passed since the last published Bee release (not 30 days).
 
-If either condition is not met, the workflow finishes successfully with a **pass** result, does not build binaries, and does not create a release. The workflow logs clearly explain which condition was not satisfied.
+For a **manual** release (`workflow_dispatch`), the calendar-month condition is skipped. Bee only checks that the previous published release does not have the same tag or release name (`bee-<full-commit-sha>` / `Bee <full-commit-sha>`). A duplicate name/tag results in a **pass** without building binaries.
+
+If the applicable conditions are not met, the workflow finishes successfully with a **pass** result, does not build binaries, and does not create a release. The workflow logs clearly explain which condition was not satisfied.
 
 If no previous published Bee release exists, the initial release is allowed when a valid commit SHA can be identified.
 
 ### Triggers
 
 - **Schedule**: runs automatically once per day.
-- **Manual**: run via GitHub Actions `workflow_dispatch` on the repository.
+- **Manual**: run via GitHub Actions `workflow_dispatch` on the repository. Ignores the calendar-month condition; only duplicate release names/tags are rejected.
 
 ### Versioning
 
