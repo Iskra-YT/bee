@@ -578,7 +578,7 @@ shell: bash
 run: cargo build && cargo test
 ```
 
-#### Script executor (explicit interpreter)
+#### Script executor (interpreter, with fallback)
 
 ```yaml
 name: generate-report
@@ -590,32 +590,21 @@ args:
   - json
 ```
 
-#### Executor fallback (executable candidates)
-
-A single `executor` string can name an executable directly instead of a built-in mode. Use a YAML list to provide alternatives: Bee tries candidates in the order given and runs the first one found as a path or on `PATH`.
+`interpreter` accepts either one string or a YAML list of alternatives. Bee checks candidates in order and uses the first one available as a path or on `PATH`:
 
 ```yaml
-name: generate-report
-executor:
+name: build-backend
+executor: script
+interpreter:
   - python3
   - python
   - py
-script: scripts/report.py
+script: scripts/maintenance/build.py
 args:
-  - --format
-  - json
+  - backend
 ```
 
-```yaml
-name: python-version
-executor:
-  - python3
-  - python
-args:
-  - --version
-```
-
-The same syntax works as a platform override, e.g. `windows: {executor: [python, py]}`.
+The same syntax works as a platform override, e.g. `windows: {interpreter: [python, py]}`.
 
 #### Legacy format (backward compatible)
 
@@ -632,14 +621,14 @@ Tasks without `executor` and with `run` keep the previous shell-based execution 
 |-------|------|-------------|
 | `name` | string | Task name (must match filename) |
 | `depends_on` | list[string] | Optional task dependencies |
-| `executor` | string or list[string] | Built-in mode (`process`, `shell`, `script`, `legacy`), an executable name, or ordered executable candidates |
+| `executor` | string | Built-in mode (`process`, `shell`, `script`, `legacy`) |
 | `run` | string | Command string for `shell`/legacy tasks |
 | `program` | string | Executable for `process` executor |
 | `args` | list[string] | Arguments for `process`/`script` executors |
 | `working_dir` | string | Working directory (relative to project root or absolute) |
 | `env` | map[string,string] | Environment variables added for the task |
 | `shell` | string | Shell for `shell` executor: `bash`, `sh`, `powershell`, `cmd` |
-| `interpreter` | string | Interpreter for `script` executor (resolved from PATH or path) |
+| `interpreter` | string or list[string] | Interpreter for `script` executor; the first available candidate wins |
 | `script` | string | Script file for `script` executor |
 | `platforms` | map | Optional per-platform overrides: `linux`, `windows`, `macos` |
 
@@ -670,21 +659,21 @@ Platform overrides are merged over the default task configuration. Supported pla
 - `.cmd` and `.bat` files are executed through `cmd.exe /C` on Windows.
 - Do not assume `.sh` files are directly executable on Windows; use `executor: shell` or an explicit interpreter.
 - Shell execution is platform-aware; do not assume `bash` is available on Windows.
-- With an executor list, `python` matches `python.exe` via `PATHEXT` (default `.EXE;.CMD;.BAT;.COM`).
+- With an interpreter list, `python` matches `python.exe` via `PATHEXT` (default `.EXE;.CMD;.BAT;.COM`).
 
 #### Cross-platform behavior
 
 - `process` executor does not use a shell; arguments are passed as a structured list.
 - `shell` executor is opt-in for shell syntax.
-- `script` executor runs an explicit interpreter with a script path.
+- `script` executor runs an interpreter (or the first available interpreter candidate) with a script path.
 - Legacy `run` tasks remain supported.
-- Executable fallback examples:
-  - Linux/macOS: `executor: [python3, python]`
-  - Windows: `executor: [python, py]`
-- Candidates are checked sequentially with the first executable found in `PATH`; paths containing a separator are checked directly.
-- An empty executor list is rejected during validation.
-- If no candidate is available, Bee reports all attempted executors, e.g. `no available executor found; tried: python3, python`.
-- Fallback is discovery-only: once an executable has been launched and fails, Bee does not try the next candidate.
+- Interpreter fallback examples:
+  - Linux/macOS: `interpreter: [python3, python]`
+  - Windows: `interpreter: [python, py]`
+- Candidates are checked sequentially with the first interpreter found in `PATH`; paths containing a separator are checked directly.
+- An empty interpreter list or a blank candidate is rejected during validation.
+- If no candidate is available, Bee reports all attempted interpreters, e.g. `no available interpreter found; tried: python3, python`.
+- Fallback is discovery-only: once an interpreter has been launched and fails, Bee does not try the next candidate.
 
 ---
 

@@ -3,10 +3,9 @@ use crate::execution::error::ExecutionError;
 use crate::execution::executor::{ExecutionResult, Executor};
 use crate::execution::platform::resolve_task_for_platform;
 use crate::execution::process::ProcessExecutor;
-use crate::execution::resolution::resolve_executor;
 use crate::execution::script::ScriptExecutor;
 use crate::execution::shell::{default_shell, ShellExecutor};
-use crate::parser::{ExecutionMode, Task};
+use crate::parser::Task;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -30,28 +29,9 @@ impl ExecutorRegistry {
                 message: e.to_string(),
             })?;
 
-        let mode = resolved.execution_mode();
+        let executor_name = resolved.effective_executor();
         let mut context = build_context(&resolved)?;
 
-        if mode == ExecutionMode::Executable {
-            // Discovery happens once, before anything is launched. A failed
-            // process never triggers another candidate.
-            let program = resolve_executor(&resolved.name, &resolved.executor_candidates())?;
-
-            if resolved.script.is_some() || resolved.interpreter.is_some() {
-                context.interpreter = Some(program);
-                return ScriptExecutor.execute(&context);
-            }
-            if resolved.run.is_some() {
-                context.shell = Some(program);
-                context.shell_command = resolved.run.clone();
-                return ShellExecutor.execute(&context);
-            }
-            context.program = program;
-            return ProcessExecutor.execute(&context);
-        }
-
-        let executor_name = resolved.effective_executor();
         match executor_name.as_str() {
             "process" => ProcessExecutor.execute(&context),
             "shell" => {
@@ -81,6 +61,7 @@ fn build_context(task: &Task) -> Result<ExecutionContext, ExecutionError> {
     context.working_dir = task.working_dir.as_ref().map(PathBuf::from);
     context.env = build_env(task);
     context.interpreter = task.interpreter.clone();
+    context.interpreter_candidates = task.interpreter_candidates();
     context.script = task.script.clone();
     Ok(context)
 }

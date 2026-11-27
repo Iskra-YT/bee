@@ -1,10 +1,9 @@
-//! Executable discovery and executor fallback resolution.
+//! Interpreter discovery and fallback resolution.
 //!
-//! Bee's `executor` field can name a built-in execution mode (`process`,
-//! `shell`, `script`, `legacy`) or an executable (possibly a list of
-//! alternatives). This module contains the platform-aware discovery logic
-//! used by both the executor registry and the shell/script executors so that
-//! there is a single implementation of "is this program available?".
+//! The `interpreter` field accepts a single executable or a list of
+//! alternatives. This module contains the platform-aware discovery logic used
+//! by the script executor so that there is a single implementation of "is
+//! this program available?".
 
 use crate::execution::error::ExecutionError;
 use std::env;
@@ -13,25 +12,22 @@ use std::path::Path;
 /// Extensions used by Windows when an executable is invoked without one.
 pub const DEFAULT_WINDOWS_PATHEXT: &str = ".EXE;.CMD;.BAT;.COM";
 
-/// Return the executable candidates configured for a task, in priority order.
-///
-/// A single string that is not a built-in execution mode is treated as a
-/// one-element fallback list. Built-in modes return an empty candidate list
-/// because they are resolved by the executor registry, not by PATH lookup.
-pub fn executor_candidates(task: &crate::parser::Task) -> Vec<String> {
-    task.executor_candidates()
+/// Return the interpreter candidates configured for a task, in priority order.
+pub fn interpreter_candidates(task: &crate::parser::Task) -> Vec<String> {
+    task.interpreter_candidates()
 }
 
-/// Select the first configured executable that is available on this system.
+/// Select the first configured interpreter that is available on this system.
 ///
 /// Candidates are checked strictly in the order supplied. This function only
 /// performs discovery: once a candidate has been selected and launched, its
 /// exit status is final and no further candidate is tried.
-pub fn resolve_executor(task: &str, candidates: &[String]) -> Result<String, ExecutionError> {
+pub fn resolve_interpreter(task: &str, candidates: &[String]) -> Result<String, ExecutionError> {
     if candidates.is_empty() {
         return Err(ExecutionError::InvalidConfig {
             task: task.to_string(),
-            message: "'executor' list cannot be empty; specify at least one executable".to_string(),
+            message: "'interpreter' list cannot be empty; specify at least one interpreter"
+                .to_string(),
         });
     }
 
@@ -45,16 +41,16 @@ pub fn resolve_executor(task: &str, candidates: &[String]) -> Result<String, Exe
         }
     }
 
-    Err(ExecutionError::ExecutorNotFound {
+    Err(ExecutionError::InterpreterNotFound {
         task: task.to_string(),
         candidates: candidates.to_vec(),
     })
 }
 
-/// Resolve the first available executor configured on `task`.
-pub fn resolve_executor_for_task(task: &crate::parser::Task) -> Result<String, ExecutionError> {
-    let candidates = executor_candidates(task);
-    resolve_executor(&task.name, &candidates)
+/// Resolve the first available interpreter configured on `task`.
+pub fn resolve_interpreter_for_task(task: &crate::parser::Task) -> Result<String, ExecutionError> {
+    let candidates = interpreter_candidates(task);
+    resolve_interpreter(&task.name, &candidates)
 }
 
 /// Check whether an executable is available as a path or on `PATH`.
@@ -170,18 +166,18 @@ mod tests {
     }
 
     #[test]
-    fn reports_all_attempted_candidates() {
+    fn reports_all_attempted_interpreters() {
         let candidates = vec!["missing-one".to_string(), "missing-two".to_string()];
-        let err = resolve_executor("task", &candidates).unwrap_err();
+        let err = resolve_interpreter("task", &candidates).unwrap_err();
         let message = err.to_string();
-        assert!(message.contains("executor"));
+        assert!(message.contains("interpreter"));
         assert!(message.contains("missing-one"));
         assert!(message.contains("missing-two"));
     }
 
     #[test]
     fn rejects_empty_candidate_list() {
-        let err = resolve_executor("task", &[]).unwrap_err();
+        let err = resolve_interpreter("task", &[]).unwrap_err();
         assert!(err.to_string().contains("empty"));
     }
 }

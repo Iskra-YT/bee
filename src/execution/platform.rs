@@ -1,4 +1,4 @@
-use crate::parser::{ExecutorSpec, PlatformOverride, Task};
+use crate::parser::{InterpreterSpec, PlatformOverride, Task};
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 
@@ -41,10 +41,8 @@ fn validate_platform_keys(
 }
 
 fn apply_override(task: &mut Task, override_cfg: &PlatformOverride) {
-    if let Some(v) = &override_cfg.executor_candidates {
-        task.set_executor_spec(ExecutorSpec::List(v.clone()));
-    } else if let Some(v) = &override_cfg.executor {
-        task.set_executor_spec(ExecutorSpec::Single(v.clone()));
+    if let Some(v) = &override_cfg.executor {
+        task.executor = Some(v.clone());
     }
     if let Some(v) = &override_cfg.run {
         task.run = Some(v.clone());
@@ -58,8 +56,10 @@ fn apply_override(task: &mut Task, override_cfg: &PlatformOverride) {
     if let Some(v) = &override_cfg.shell {
         task.shell = Some(v.clone());
     }
-    if let Some(v) = &override_cfg.interpreter {
-        task.interpreter = Some(v.clone());
+    if let Some(v) = &override_cfg.interpreter_candidates {
+        task.set_interpreter_spec(InterpreterSpec::List(v.clone()));
+    } else if let Some(v) = &override_cfg.interpreter {
+        task.set_interpreter_spec(InterpreterSpec::Single(v.clone()));
     }
     if let Some(v) = &override_cfg.script {
         task.script = Some(v.clone());

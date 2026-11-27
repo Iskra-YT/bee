@@ -14,10 +14,6 @@ pub enum ExecutionError {
         task: String,
         executor: String,
     },
-    ExecutorNotFound {
-        task: String,
-        candidates: Vec<String>,
-    },
     UnsupportedPlatform {
         task: String,
         platform: String,
@@ -28,7 +24,7 @@ pub enum ExecutionError {
     },
     InterpreterNotFound {
         task: String,
-        interpreter: String,
+        candidates: Vec<String>,
     },
     ShellNotFound {
         task: String,
@@ -63,25 +59,18 @@ impl fmt::Display for ExecutionError {
             ExecutionError::UnsupportedExecutor { task, executor } => {
                 write!(f, "Task '{}': unsupported executor '{}'", task, executor)
             }
-            ExecutionError::ExecutorNotFound { task, candidates } => {
-                write!(
-                    f,
-                    "Task '{}': no available executor found; tried: {} (install one of these or update the 'executor' list)",
-                    task,
-                    candidates.join(", ")
-                )
-            }
             ExecutionError::UnsupportedPlatform { task, platform } => {
                 write!(f, "Task '{}': unsupported platform '{}'", task, platform)
             }
             ExecutionError::ProgramNotFound { task, program } => {
                 write!(f, "Task '{}': program '{}' not found", task, program)
             }
-            ExecutionError::InterpreterNotFound { task, interpreter } => {
+            ExecutionError::InterpreterNotFound { task, candidates } => {
                 write!(
                     f,
-                    "Task '{}': interpreter '{}' not found",
-                    task, interpreter
+                    "Task '{}': no available interpreter found; tried: {} (install one of these or update the 'interpreter' list)",
+                    task,
+                    candidates.join(", ")
                 )
             }
             ExecutionError::ShellNotFound { task, shell } => {

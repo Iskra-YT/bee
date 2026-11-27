@@ -12,4 +12,4 @@ pub use context::ExecutionContext;
 pub use error::ExecutionError;
 pub use executor::{ExecutionResult, Executor};
 pub use registry::{execute_task, ExecutorRegistry};
-pub use resolution::{program_exists, resolve_executor, resolve_executor_for_task};
+pub use resolution::{program_exists, resolve_interpreter, resolve_interpreter_for_task};

@@ -19,6 +19,8 @@ pub struct ExecutionContext {
     pub shell: Option<String>,
     pub shell_command: Option<String>,
     pub interpreter: Option<String>,
+    /// Ordered interpreter candidates; takes precedence over `interpreter`.
+    pub interpreter_candidates: Vec<String>,
     pub script: Option<String>,
 }
 
@@ -35,6 +37,7 @@ impl ExecutionContext {
             shell: None,
             shell_command: None,
             interpreter: None,
+            interpreter_candidates: Vec::new(),
             script: None,
         }
     }
