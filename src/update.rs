@@ -94,8 +94,28 @@ fn detect_platform() -> Result<Platform> {
     })
 }
 
+/// Wybiera najnowsze opublikowane wydanie, niezależnie od kolejności zwróconej przez API.
+fn pick_latest_release(releases: &[json::JsonValue]) -> Option<&json::JsonValue> {
+    releases
+        .iter()
+        .filter(|release| {
+            !release["draft"].as_bool().unwrap_or(false)
+                && !release["prerelease"].as_bool().unwrap_or(false)
+                && release["tag_name"]
+                    .as_str()
+                    .is_some_and(|tag| parse_release_sha(tag).is_ok())
+        })
+        .max_by(|left, right| {
+            left["published_at"]
+                .as_str()
+                .unwrap_or("")
+                .cmp(right["published_at"].as_str().unwrap_or(""))
+        })
+}
+
 fn fetch_latest_bee_release() -> Result<json::JsonValue> {
     let mut page = 1u32;
+    let mut releases = Vec::new();
     loop {
         let url = format!(
             "{}/repos/{}/releases?per_page=100&page={}",
@@ -108,22 +128,9 @@ fn fetch_latest_bee_release() -> Result<json::JsonValue> {
             json::JsonValue::Array(a) => a,
             _ => return Err(anyhow!("Unexpected GitHub releases response format")),
         };
-        if arr.is_empty() {
-            break;
-        }
-        for release in &arr {
-            if release["draft"].as_bool().unwrap_or(false)
-                || release["prerelease"].as_bool().unwrap_or(false)
-            {
-                continue;
-            }
-            if let Some(tag) = release["tag_name"].as_str() {
-                if parse_release_sha(tag).is_ok() {
-                    return Ok(release.clone());
-                }
-            }
-        }
-        if arr.len() < 100 {
+        let exhausted = arr.len() < 100;
+        releases.extend(arr);
+        if exhausted {
             break;
         }
         page += 1;
@@ -131,11 +138,12 @@ fn fetch_latest_bee_release() -> Result<json::JsonValue> {
             return Err(anyhow!("Too many release pages; refusing to continue"));
         }
     }
-    Err(anyhow!(
-        "No published Bee release found (expected tag bee-<40-char-sha>) in {}/{}",
-        "https://github.com",
-        REPO
-    ))
+    pick_latest_release(&releases).cloned().ok_or_else(|| {
+        anyhow!(
+            "No published Bee release found (expected tag bee-<40-char-sha>) in https://github.com/{}",
+            REPO
+        )
+    })
 }
 
 fn parse_release_sha(tag: &str) -> Result<String> {
@@ -367,4 +375,47 @@ fn make_tmp_dir() -> Result<PathBuf> {
     ));
     fs::create_dir_all(&base)?;
     Ok(base)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn latest_release_is_chosen_by_publication_date_not_response_order() {
+        let old_sha = "a".repeat(40);
+        let new_sha = "b".repeat(40);
+        let draft_sha = "c".repeat(40);
+        let payload = format!(
+            r#"[
+                {{"tag_name":"bee-{old_sha}","draft":false,"prerelease":false,"published_at":"2026-11-27T09:03:01Z"}},
+                {{"tag_name":"bee-{draft_sha}","draft":true,"prerelease":false,"published_at":"2026-11-27T10:30:00Z"}},
+                {{"tag_name":"bee-{new_sha}","draft":false,"prerelease":false,"published_at":"2026-11-27T10:01:45Z"}}
+            ]"#
+        );
+        let parsed = json::parse(&payload).unwrap();
+        let releases = match parsed {
+            json::JsonValue::Array(releases) => releases,
+            _ => panic!("expected an array"),
+        };
+        let latest = pick_latest_release(&releases).unwrap();
+        assert_eq!(
+            latest["tag_name"].as_str(),
+            Some(format!("bee-{new_sha}").as_str())
+        );
+    }
+
+    #[test]
+    fn releases_without_bee_tag_are_ignored() {
+        let payload = r#"[
+            {"tag_name":"v1.0.0","draft":false,"prerelease":false,"published_at":"2026-11-28T00:00:00Z"},
+            {"tag_name":"prerelease","draft":false,"prerelease":true,"published_at":"2026-11-29T00:00:00Z"}
+        ]"#;
+        let parsed = json::parse(payload).unwrap();
+        let releases = match parsed {
+            json::JsonValue::Array(releases) => releases,
+            _ => panic!("expected an array"),
+        };
+        assert!(pick_latest_release(&releases).is_none());
+    }
 }
