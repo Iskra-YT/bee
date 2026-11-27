@@ -198,8 +198,11 @@ fn single_interpreter_string_is_preserved_and_runs() {
     );
     assert_eq!(task.interpreter_candidates, None);
     assert_eq!(
-        task.interpreter_candidates(),
-        vec![path_string(&interpreter)]
+        task.interpreter_candidates()
+            .iter()
+            .map(|value| value.replace('\\', "/"))
+            .collect::<Vec<_>>(),
+        vec![yaml_path(&interpreter)]
     );
     task.validate().unwrap();
 
