@@ -4,6 +4,7 @@ use bee::execution::{
 };
 use bee::parser::{InterpreterSpec, PlatformOverride, Task};
 use std::collections::BTreeMap;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -241,6 +242,22 @@ fn build_backend_config_runs_with_interpreter_list() {
         "stdout: {}",
         result.stdout
     );
+}
+
+#[test]
+fn microsoft_store_alias_is_skipped_during_discovery() {
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+    let dir = temp_dir("store-alias");
+    fs::write(dir.join("python3.exe"), b"MZ").unwrap();
+    marker_program(&dir, "python", "real-python");
+    let old_path = env::var_os("PATH");
+    env::set_var("PATH", &dir);
+    let selected = resolve_interpreter("store", &["python3".into(), "python".into()]);
+    match old_path {
+        Some(path) => env::set_var("PATH", path),
+        None => env::remove_var("PATH"),
+    }
+    assert_eq!(selected.unwrap(), "python");
 }
 
 #[test]

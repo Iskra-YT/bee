@@ -53,6 +53,24 @@ pub fn resolve_interpreter_for_task(task: &crate::parser::Task) -> Result<String
     resolve_interpreter(&task.name, &candidates)
 }
 
+/// Microsoft Store aliases are two-byte `MZ` reparse points that only open the Store.
+fn is_store_alias(path: &Path) -> bool {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    if metadata.len() > 2 {
+        return false;
+    }
+    std::fs::read(path)
+        .map(|bytes| bytes.starts_with(b"MZ"))
+        .unwrap_or(false)
+}
+
+/// Check whether a file is a real executable, not a Microsoft Store alias.
+fn is_usable_program(path: &Path) -> bool {
+    path.is_file() && !is_store_alias(path)
+}
+
 /// Check whether an executable is available as a path or on `PATH`.
 ///
 /// On Windows (or when `PATHEXT` is explicitly set) the usual executable
@@ -69,7 +87,7 @@ pub fn program_exists(program: &str) -> bool {
     let names = invocation_names(program, &extensions);
 
     if is_path_like(program) {
-        return names.iter().any(|name| Path::new(name).is_file());
+        return names.iter().any(|name| is_usable_program(Path::new(name)));
     }
 
     let Some(path_var) = env::var_os("PATH") else {
@@ -77,7 +95,7 @@ pub fn program_exists(program: &str) -> bool {
     };
 
     for dir in env::split_paths(&path_var) {
-        if names.iter().any(|name| dir.join(name).is_file()) {
+        if names.iter().any(|name| is_usable_program(&dir.join(name))) {
             return true;
         }
     }
@@ -179,5 +197,18 @@ mod tests {
     fn rejects_empty_candidate_list() {
         let err = resolve_interpreter("task", &[]).unwrap_err();
         assert!(err.to_string().contains("empty"));
+    }
+
+    #[test]
+    fn store_alias_is_not_a_usable_program() {
+        let dir = env::temp_dir().join(format!("bee-store-alias-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let alias = dir.join("python.exe");
+        std::fs::write(&alias, b"MZ").unwrap();
+        let real = dir.join("python.cmd");
+        std::fs::write(&real, b"@echo off\r\n").unwrap();
+        assert!(!is_usable_program(&alias));
+        assert!(is_usable_program(&real));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
