@@ -300,12 +300,22 @@ fn is_cmd_program(program: &str) -> bool {
         .is_some_and(|name| name.eq_ignore_ascii_case("cmd.exe"))
 }
 
-/// Quote a single argument for `cmd.exe /C`. CMD treats `""` inside a quoted
-/// string as a literal quote and `"` as a delimiter; this keeps arguments
-/// containing spaces or shell metacharacters as one token with no injection.
-#[cfg(windows)]
+/// Quote a single argument for `cmd.exe /C` only when needed. CMD keeps the
+/// quotes around batch-file arguments, so quoting plain values would change
+/// what `%1`, `%2`, ... contain. Values with spaces or metacharacters still
+/// need quotes to stay a single token and avoid injection; `""` inside a
+/// quoted string is CMD's escape for a literal quote.
+#[cfg(any(windows, test))]
 fn quote_cmd_argument(value: &str) -> String {
-    format!("\"{}\"", value.replace('"', "\"\""))
+    let needs_quotes = value.is_empty()
+        || value.chars().any(|c| {
+            c.is_whitespace() || matches!(c, '"' | '&' | '<' | '>' | '(' | ')' | '@' | '^' | '|')
+        });
+    if needs_quotes {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
 }
 
 #[cfg(test)]
@@ -322,13 +332,15 @@ mod program_detection_tests {
     }
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn quotes_cmd_arguments() {
+        assert_eq!(quote_cmd_argument("plain"), "plain");
         assert_eq!(quote_cmd_argument("a b"), "\"a b\"");
         assert_eq!(quote_cmd_argument("a\"b"), "\"a\"\"b\"");
+        assert_eq!(quote_cmd_argument("a&b"), "\"a&b\"");
     }
 }
